@@ -1,0 +1,19 @@
+# Playwright 인증/세션 정보 (민감 정보 - 절대 커밋 금지)
+auth.json
+
+# 가상환경
+.venv/
+
+# Python 캐시
+__pycache__/
+*.pyc
+
+# pytest 캐시
+.pytest_cache/
+
+# Playwright 테스트 산출물
+test-results/
+playwright-report/
+
+# PyCharm 프로젝트 설정
+.idea/
