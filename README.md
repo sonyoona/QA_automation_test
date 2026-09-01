@@ -32,6 +32,7 @@ Playwright + pytest 기반 웹 관리자 시스템 UI 자동화 테스트입니�
 
 ```
 .
+├── CLAUDE.md                         # QA 자동화 테스트 설계 공통 원칙 (Claude Code 참고용)
 ├── conftest.py                       # 공통 픽스처 (인증 세션 관리)
 ├── test_login.py                     # 로그인 및 권한 검증 테스트
 ├── test_monitor_reseller_filter.py   # 필터 변경 회귀 테스트
@@ -39,6 +40,8 @@ Playwright + pytest 기반 웹 관리자 시스템 UI 자동화 테스트입니�
 ├── .env.example                      # 환경변수 템플릿
 └── .gitignore
 ```
+
+> 화면이 바뀌어도 유지되는 테스트 설계 원칙(셀렉터 전략, 검증 범위, skip 기준 등)은 [`CLAUDE.md`](./CLAUDE.md)에, 화면별 세부 배경은 `docs/notes/code-notes/`에 정리되어 있습니다.
 
 <br>
 
