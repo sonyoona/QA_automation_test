@@ -8,7 +8,7 @@ from playwright.sync_api import expect
 
 load_dotenv()
 
-STAFF_URL = os.getenv("STAFF_URL", "https://<STAFF_URL_REDACTED>/")
+STAFF_URL = os.getenv("STAFF_URL")
 ADMIN_EMAIL = os.getenv("STAFF_ADMIN_EMAIL")
 ADMIN_PASSWORD = os.getenv("STAFF_ADMIN_PASSWORD")
 

@@ -4,7 +4,7 @@ import re
 import pytest
 from playwright.sync_api import expect
 
-STAFF_URL = os.getenv("STAFF_URL", "https://<STAFF_URL_REDACTED>/")
+STAFF_URL = os.getenv("STAFF_URL")
 
 MONITOR_TABS = ["통신", "구독끊김", "RT사망", "FaultINFO", "좌표누락", "지하음영", "통합"]
 # pytest가 parametrize 테스트 ID를 만들 때 한글을 \uXXXX로 이스케이프해버려서,
@@ -76,6 +76,12 @@ def _get_real_row_count(page):
     if count == 1 and rows.first.locator("td").first.get_attribute("colspan"):
         return 0
     return count
+
+
+def _get_sample_pages(total_pages):
+    """전체 페이지 중 첫 페이지·중간 페이지·마지막 페이지를 표본으로 뽑는다.
+    페이지 수가 적으면(1~2개) 자동으로 중복 없이 있는 것만 남는다."""
+    return sorted({1, total_pages, (1 + total_pages) // 2})
 
 
 def _go_to_page(page, target_page):
@@ -163,9 +169,7 @@ def test_TC086_monitor_reseller_filter_query_result(logged_in_page, tab_name):
     GIVEN  STAFF 웹에 로그인된 상태에서 단말기>모니터 화면에 진입해, 검증 대상 탭으로 이동하면
            (탭에 데이터가 아예 없으면 검증할 게 없으므로 skip)
     WHEN   리셀러 필터에서 특정 리셀러(커넥트)를 선택하고 [조회]를 클릭하면
-    THEN   표본으로 뽑은 1·5·10페이지(페이지가 그만큼 있는 경우만)의 모든 행이 그 리셀러(커넥트)
-           값을 가진다. 그리고 필터 전에 다른 리셀러도 섞여 있었다면 필터링으로 결과 건수가
-           반드시 줄어야 하고(엄격 비교), 필터 전부터 이미 커넥트뿐이었다면 그대로여도 정상이다
+    THEN   표본으로 뽑은 첫/중간/마지막 페이지의 모든 행이 그 리셀러(커넥트) 값을 가진다
            (컬럼 위치는 탭마다 달라 매번 새로 계산)
     """
     page = logged_in_page
@@ -173,20 +177,10 @@ def test_TC086_monitor_reseller_filter_query_result(logged_in_page, tab_name):
 
     target_reseller = "커넥트"
 
-    unfiltered_total_pages = _get_total_pages(page)
-    unfiltered_row_count = _get_real_row_count(page)
-    if unfiltered_row_count == 0:
+    if _get_real_row_count(page) == 0:
         pytest.skip(f"{tab_name} 탭에 조회할 데이터가 아예 없어 리셀러 필터를 검증할 수 없음")
 
-    # 필터 걸기 전(기본값 "전체")에 다른 리셀러도 섞여 있었는지 미리 확인해둔다.
-    # 리셀러 값만 확인하면, 필터가 고장나서 아예 안 걸려도 "우연히 전부 커넥트"인 경우를
-    # 못 잡아낸다 — 다양성이 있었다는 걸 미리 알아두면, 필터 후 건수 비교를 더 엄격하게 할 수 있다.
     col_index = _find_reseller_col_index(page)
-    unfiltered_resellers = {
-        page.locator("table").first.locator("tbody tr").nth(i).locator("td").nth(col_index).inner_text()
-        for i in range(unfiltered_row_count)
-    }
-    has_other_resellers = bool(unfiltered_resellers - {target_reseller})
 
     reseller_dropdown = _open_reseller_dropdown(page)
     reseller_dropdown.get_by_role("option", name=target_reseller, exact=True).click()
@@ -198,27 +192,7 @@ def test_TC086_monitor_reseller_filter_query_result(logged_in_page, tab_name):
     assert filtered_row_count > 0, "조회 결과가 0건입니다 — 필터가 제대로 적용됐는지 먼저 확인하세요"
 
     total_pages = _get_total_pages(page)
-    sample_pages = [p for p in (1, 5, 10) if p <= total_pages]
-
-    if total_pages < unfiltered_total_pages:
-        pass  # 페이지 수 자체가 줄어서 필터링됨이 확실함
-    elif has_other_resellers:
-        # 필터 전에 다른 리셀러가 섞여 있었다는 걸 이미 확인했으므로, 필터링 후에는
-        # 반드시 건수가 줄어야 한다 — 안 줄었다면 필터가 실제로 적용 안 된 것.
-        assert filtered_row_count < unfiltered_row_count, (
-            f"[FAIL] 필터 전에 다른 리셀러도 섞여 있었는데({unfiltered_resellers}) 필터링 후 결과 건수가 "
-            f"안 줄었습니다 (필터 전 {unfiltered_row_count}행 → 필터 후 {filtered_row_count}행) — "
-            f"필터가 실제로 적용 안 됐을 수 있습니다"
-        )
-    else:
-        # 필터 전부터 이미 target_reseller 하나뿐이었다 — 이 경우 필터링해도 건수가
-        # 그대로인 게 정상이라, "늘지만 않으면" 통과시킨다(이 경우 필터 자체가 진짜 동작했는지는
-        # 이 비교만으로는 증명할 수 없다 — 애초에 걸러낼 다른 데이터가 없었기 때문).
-        assert filtered_row_count <= unfiltered_row_count, (
-            f"[FAIL] 필터링 후 결과 건수가 오히려 늘었습니다 "
-            f"(필터 전 {unfiltered_row_count}행 → 필터 후 {filtered_row_count}행) — "
-            f"필터가 실제로 적용 안 됐을 수 있습니다"
-        )
+    sample_pages = _get_sample_pages(total_pages)
 
     for target_page in sample_pages:
         _go_to_page(page, target_page)

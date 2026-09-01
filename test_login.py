@@ -2,7 +2,7 @@ import os
 
 from playwright.sync_api import expect
 
-STAFF_URL = os.getenv("STAFF_URL", "https://<STAFF_URL_REDACTED>/")
+STAFF_URL = os.getenv("STAFF_URL")
 
 NOAUTH_EMAIL = os.getenv("STAFF_NOAUTH_EMAIL")
 NOAUTH_PASSWORD = os.getenv("STAFF_NOAUTH_PASSWORD")
