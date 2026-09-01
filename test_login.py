@@ -7,6 +7,8 @@ STAFF_URL = os.getenv("STAFF_URL")
 NOAUTH_EMAIL = os.getenv("STAFF_NOAUTH_EMAIL")
 NOAUTH_PASSWORD = os.getenv("STAFF_NOAUTH_PASSWORD")
 
+# 자세한 설명은 docs/notes/code-notes/로그인-테스트-노트.md 참고
+
 
 def test_TC103_login_fail_no_permission(page):
     """
