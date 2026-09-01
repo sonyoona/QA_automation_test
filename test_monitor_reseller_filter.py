@@ -112,6 +112,24 @@ def _go_to_page(page, target_page):
     )
 
 
+def _go_to_last_page(page):
+    """[마지막] 버튼을 눌러 실제 마지막 페이지로 이동한다.
+
+    이 화면은 실시간으로 갱신되는 모니터링 데이터라, _get_total_pages()로 미리 계산해둔
+    총 페이지 수가 그 뒤(특히 통합 탭처럼 느린 탭에서 여러 페이지를 거쳐가는 사이)
+    실제 값과 달라질 수 있다. 그래서 미리 계산해둔 페이지 번호로 이동을 시도하고
+    "그 번호에 도착했는지"를 확인하는 대신, [마지막] 버튼이 실제로 데려다주는 곳을
+    그대로 마지막 페이지로 받아들인다 — 그 순간의 진짜 마지막 페이지가 어디든, 그곳이
+    검증해야 할 표본이라는 뜻이다."""
+    pagination = page.locator(".pagination")
+    if pagination.count() == 0:
+        return
+
+    last_link = pagination.first.locator('a[type="lastItem"]')
+    last_link.click()
+    page.locator(".spinner").first.wait_for(state="hidden", timeout=60_000)
+
+
 def _assert_all_rows_have_reseller(page, col_index, target_reseller):
     """현재 화면(한 페이지)의 모든 행에 대해 리셀러 컬럼 값이 target_reseller와 정확히 같은지 전수 확인한다."""
     rows = page.locator("table").first.locator("tbody tr")
@@ -195,7 +213,10 @@ def test_TC086_monitor_reseller_filter_query_result(logged_in_page, tab_name):
     sample_pages = _get_sample_pages(total_pages)
 
     for target_page in sample_pages:
-        _go_to_page(page, target_page)
+        if target_page == total_pages:
+            _go_to_last_page(page)
+        else:
+            _go_to_page(page, target_page)
         _assert_all_rows_have_reseller(page, col_index, target_reseller)
 
 
