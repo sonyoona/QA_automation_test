@@ -1,9 +1,18 @@
 import os
 import re
 
+import pytest
 from playwright.sync_api import expect
 
 STAFF_URL = os.getenv("STAFF_URL")
+
+# dev 환경에서 실제로 업체를 하나씩 선택해보고 확인한 업체→파트너 매핑 (업체 이름만으로는
+# 소속 파트너를 알 수 없음 — 예: "유플러스"라는 이름의 업체가 실제로는 커넥트 파트너였음)
+COMPANY_PARTNERS = {
+    "IMS모빌리티": "커넥트",
+    "LG업체입니다": "LG U+",
+    "스몰티켓(지입)2": "스몰티켓",
+}
 
 # 자세한 설명은 docs/notes/code-notes/차량등록-파트너리셀러-테스트-노트.md 참고
 
@@ -98,14 +107,14 @@ def test_TC045_vehicle_register_partner_reseller_switch_by_company(logged_in_pag
     # 1. 파트너가 커넥트인 업체
     _select_company(page, "IMS모빌리티")
     expect(partner_field).to_have_attribute("aria-disabled", "true")
-    expect(partner_text).to_have_text("커넥트")
+    expect(partner_text).to_have_text(COMPANY_PARTNERS["IMS모빌리티"])
     expect(reseller_field).to_have_attribute("aria-disabled", "true")
-    expect(reseller_text).to_have_text("커넥트")
+    expect(reseller_text).to_have_text(COMPANY_PARTNERS["IMS모빌리티"])
 
     # 2. 파트너가 LG U+인 업체로 변경
     _select_company(page, "LG업체입니다")
     expect(partner_field).to_have_attribute("aria-disabled", "true")
-    expect(partner_text).to_have_text("LG U+")
+    expect(partner_text).to_have_text(COMPANY_PARTNERS["LG업체입니다"])
     expect(reseller_field).to_have_attribute("aria-disabled", "false")
     reseller_options = reseller_field.locator('[role="option"] .text').all_inner_texts()
     assert set(reseller_options) == {"커넥트", "LG U+"}, (
@@ -115,6 +124,34 @@ def test_TC045_vehicle_register_partner_reseller_switch_by_company(logged_in_pag
     # 3. 파트너가 스몰티켓인 업체로 변경
     _select_company(page, "스몰티켓(지입)2")
     expect(partner_field).to_have_attribute("aria-disabled", "true")
-    expect(partner_text).to_have_text("스몰티켓")
+    expect(partner_text).to_have_text(COMPANY_PARTNERS["스몰티켓(지입)2"])
     expect(reseller_field).to_have_attribute("aria-disabled", "true")
-    expect(reseller_text).to_have_text("스몰티켓")
+    expect(reseller_text).to_have_text(COMPANY_PARTNERS["스몰티켓(지입)2"])
+
+
+@pytest.mark.parametrize(
+    "company_name",
+    list(COMPANY_PARTNERS),
+    ids=["connect_company", "lg_uplus_company", "smallticket_company"],
+)
+def test_TC046_vehicle_register_partner_auto_selected_on_company(logged_in_page, company_name):
+    """
+    TC-046 | 업체 선택 시 파트너 자동선택 확인 (파트너가 다른 업체 3개로 검증)
+
+    GIVEN  STAFF 웹에 로그인된 상태에서 차량관리>차스펙관리 화면에 진입해, 목록의 [등록] 버튼을 클릭하면
+    WHEN   임의의 업체를 선택하면
+    THEN   해당 업체의 파트너가 자동으로 선택되고, 사용자가 변경할 수 없도록 비활성화되어 있다
+
+    ※ 기획서에는 명시되지 않은 동작이지만, 실제 웹은 기대 결과와 같이 동작함(TC 문서 비고에 기재)
+    "임의의 업체"라는 주장을 업체 하나만으로 검증하면 그 업체 한정 동작일 수 있으므로,
+    파트너가 서로 다른 업체 3개(COMPANY_PARTNERS) 전부에서 성립하는지 반복 확인한다.
+    """
+    page = logged_in_page
+    _open_carspec_register_modal(page)
+
+    _select_company(page, company_name)
+
+    partner_field = _get_form_field(page, "파트너")
+    partner_text = partner_field.locator(".text").first
+    expect(partner_text).not_to_have_text("-")
+    expect(partner_field).to_have_attribute("aria-disabled", "true")
