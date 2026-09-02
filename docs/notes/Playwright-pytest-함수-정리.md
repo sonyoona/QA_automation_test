@@ -1,6 +1,44 @@
 # 코드 속 함수 정리
 
-`test_login.py`, `conftest.py`, `test_monitor_reseller_filter.py`, `test_vehicle_register_reseller.py`에서 실제로 쓴 함수·메서드만 모았습니다. `HTML-태그-정리.md`가 "화면의 태그"를 다뤘다면, 이 문서는 "그 태그를 조작·검증하는 코드"를 다룹니다. 순서는 실제 테스트가 진행되는 흐름(이동 → 찾기 → 조작 → 기다리기 → 검증)을 따라갑니다.
+`test_login.py`, `conftest.py`, `test_monitor_reseller_filter.py`, `test_vehicle_register_reseller.py`, `test_vehicle_edit_reseller.py`, `test_vehicle_company_transfer.py`에서 실제로 쓴 함수·메서드만 모았습니다. `HTML-태그-정리.md`가 "화면의 태그"를 다뤘다면, 이 문서는 "그 태그를 조작·검증하는 코드"를 다룹니다. 순서는 실제 테스트가 진행되는 흐름(import → 이동 → 찾기 → 조작 → 기다리기 → 검증)을 따라갑니다.
+
+## 00. Import 정리 — 이 줄들이 왜 있나
+
+파일 맨 위의 `import` 줄들은 "이 파일에서 이런 기능들을 갖다 쓰겠다"는 선언입니다. 어떤 import가 어떤 기능 때문에 필요한지 연결해서 보면 아래 챕터들이 더 잘 이해됩니다.
+
+```python
+import os
+import re
+
+import pytest
+from playwright.sync_api import expect
+```
+
+**`import os`**
+`os.getenv(...)`(11번), `os.path.exists(...)`(11번)를 쓰려고 가져옵니다. `.env` 값을 읽거나 파일 존재 여부를 확인할 때 씁니다.
+
+**`import re`**
+`re.compile(...)`, `re.escape(...)`(11번)를 쓰려고 가져옵니다. Locator를 정규식으로 정밀하게 좁힐 때(02번의 `.filter(has_text=re.compile(...))`) 필요합니다.
+
+**`import pytest`**
+`@pytest.fixture`, `@pytest.mark.parametrize`, `pytest.skip(...)`(09번)처럼 **pytest가 제공하는 기능**을 쓰려면 이 import가 있어야 합니다. 테스트 함수 자체(`def test_...`)는 pytest 프레임워크가 알아서 찾아 실행해주기 때문에 import 없이도 되지만, `parametrize`나 `skip`처럼 **직접 이름을 써서 불러야 하는 도구**는 import가 필요합니다. 그래서 parametrize·skip을 안 쓰는 파일(`test_vehicle_edit_reseller.py`, `test_vehicle_company_transfer.py`)에는 이 import 자체가 없습니다.
+
+**`from playwright.sync_api import expect`**
+말씀하신 대로 정확히 07번의 `expect(...)`를 쓰려고 가져오는 import입니다. Playwright가 제공하는 것 중에서도 "검증 전용 도구"만 콕 집어 가져오는 것이라, `page`나 `browser` 같은 다른 Playwright 객체들과는 달리 **직접 import해야만** 쓸 수 있습니다(`page`/`browser`는 pytest-playwright가 fixture로 자동 건네주지만, `expect`는 그런 fixture가 아니라 그냥 함수라서 직접 가져와야 합니다).
+
+**`from dotenv import load_dotenv`** — `conftest.py`에서만 사용
+`.env` 파일의 내용을 읽어서 환경변수로 등록해주는 외부 라이브러리 함수입니다. `conftest.py` 맨 위에서 딱 한 번(`load_dotenv()`) 호출하면, 그 뒤로는 어느 테스트 파일에서든 `os.getenv("STAFF_URL")`처럼 값을 꺼내 쓸 수 있게 됩니다.
+```python
+from dotenv import load_dotenv
+load_dotenv()
+```
+자세한 설명은 `docs/notes/자동화-테스트-노트.md`의 ".env와 .env.example" 항목 참고.
+
+**다른 테스트 파일에서 직접 가져오기** — `test_vehicle_company_transfer.py`에서 새로 쓴 방식
+```python
+from test_vehicle_edit_reseller import CAR_PARTNER_CONNECT, _get_edit_field, _open_carmgmt_edit_modal
+```
+파이썬은 "테스트 파일"과 "그냥 파이썬 모듈"을 구분하지 않습니다 — `test_vehicle_edit_reseller.py`도 결국 평범한 `.py` 파일이라, 다른 파일에서 `import`로 그 안의 함수·변수를 그대로 가져다 쓸 수 있습니다. 두 파일이 완전히 같은 모달(차량관리>차량관리 수정)을 다루기 때문에, 헬퍼 함수를 복사해서 새로 만드는 대신 원본을 그대로 재사용한 것입니다. 밑줄로 시작하는 이름(`_get_edit_field` 등)이나 `test_`로 시작 안 하는 이름만 가져왔기 때문에, pytest가 이 파일을 수집할 때 `test_vehicle_edit_reseller.py`의 테스트 함수를 중복으로 다시 실행하는 일은 없습니다.
 
 ## 01. 페이지 이동
 
@@ -60,6 +98,13 @@ page.locator("a").filter(has_text=re.compile(r"^차량관리$"))
 page.locator("label").filter(has_text="리셀러")
 ```
 `^...$`를 쓴 이유는 `CLAUDE.md`의 "부분 일치 함정" 항목 참고 — `has_text="완료"`라고만 하면 "배정완료"도 걸립니다.
+
+**`locator.filter(has=다른_locator)`**
+`has_text=`가 "글자"로 좁히는 거라면, `has=`는 **"이 Locator를 자식으로 갖고 있는 것"**으로 좁힙니다. 값이 문자열이 아니라 또 다른 Locator라는 게 다른 점입니다.
+```python
+page.locator("section").filter(has=page.locator('input[name="carNumber"]'))
+```
+차량 수정 모달은 기존 목록 화면 위에 겹쳐서 뜨는데, 페이지에 `<section>`이 여러 개 있을 수 있어서 "그 안에 `carNumber` 입력창을 갖고 있는 `<section>`"으로 정확히 지금 열린 모달만 골라낼 때 씁니다.
 
 ## 03. 여러 개 중에서 고르기
 
@@ -161,10 +206,26 @@ expect(partner_text).to_have_text("커넥트")
 expect(partner_text).not_to_have_text("-")
 ```
 
-**`expect(locator).to_have_attribute(속성명, 값)`**
-그 요소의 HTML 속성이 특정 값인지 확인합니다. `.get_attribute()`(04번, 그 순간 값만 읽음)의 "재시도 버전"이라고 보면 됩니다.
+**`expect(locator).to_have_attribute(속성명, 값)`** / **`.not_to_have_attribute(속성명, 값)`**
+그 요소의 HTML 속성이 특정 값인지 / 아닌지 확인합니다. `.get_attribute()`(04번, 그 순간 값만 읽음)의 "재시도 버전"이라고 보면 됩니다.
 ```python
 expect(partner_field).to_have_attribute("aria-disabled", "true")
+expect(reseller_field).not_to_have_attribute("aria-disabled", "true")
+```
+`not_to_have_attribute`가 필요했던 이유: 차량 수정 모달에서는 필드가 활성화됐을 때 `aria-disabled` 속성이 `"false"`로 채워지는 게 아니라 **속성 자체가 아예 없어집니다.** "정확히 `"false"`인지"를 확인하면 이 경우를 놓치지만, "`"true"`가 아닌지"를 확인하면 속성이 없는 경우까지 정확히 잡아냅니다.
+
+**`expect(locator).to_have_value(값)`**
+`<input>`의 현재 입력값이 정확히 그 값인지 확인합니다(반복 재확인됨). 텍스트 요소를 보는 `to_have_text`와 달리, 실제 폼 입력창(`<input>`)의 `value` 속성을 봅니다.
+```python
+expect(car_number_input).to_have_value(car_number, timeout=15_000)
+```
+차량 수정 모달은 열리자마자 상세 데이터를 비동기로 받아오기 때문에, "차량 번호 입력값이 실제로 그 차량 걸로 찼는지"를 이걸로 확인해서 "이제 이 차량의 데이터 로딩이 끝났다"는 신호로 씁니다.
+
+**`expect(locator).to_have_count(개수)`**
+매칭된 요소의 **개수**가 정확히 그 숫자인지 확인합니다(반복 재확인됨). `.count()`(03번)가 그 순간의 스냅샷이라면, 이건 그 개수가 될 때까지 기다려주는 버전입니다.
+```python
+reseller_options = reseller_field.locator('[role="option"] .text')
+expect(reseller_options).to_have_count(2)
 ```
 
 ## 08. `assert` — 파이썬 자체 검증
@@ -278,5 +339,13 @@ assert set(reseller_options) == {"커넥트", "LG U+"}
 return sorted({1, total_pages, (1 + total_pages) // 2})
 ```
 
+**`리스트.index(값)`**
+리스트 안에서 그 값이 몇 번째(0부터)에 있는지 찾아줍니다. 값이 없으면 에러가 납니다.
+```python
+headers = page.locator("table").first.locator("thead th").all_inner_texts()
+return headers.index(header_text)
+```
+`all_inner_texts()`(04번)로 헤더 글자들을 리스트로 뽑아온 다음, 원하는 헤더 글자가 몇 번째 컬럼인지 찾을 때 씁니다 — 컬럼 위치를 숫자로 하드코딩하지 않고 헤더 텍스트로 찾아내는 패턴의 핵심 부분입니다.
+
 ---
-`test_login.py` · `conftest.py` · `test_monitor_reseller_filter.py` · `test_vehicle_register_reseller.py` 전체를 훑어서 정리했습니다. 개념 설명(fixture가 정확히 뭔지, scope 차이 등)은 `docs/notes/자동화-테스트-노트.md`에 더 자세히 있습니다.
+`test_login.py` · `conftest.py` · `test_monitor_reseller_filter.py` · `test_vehicle_register_reseller.py` · `test_vehicle_edit_reseller.py` · `test_vehicle_company_transfer.py` 전체를 훑어서 정리했습니다. 개념 설명(fixture가 정확히 뭔지, scope 차이 등)은 `docs/notes/자동화-테스트-노트.md`에 더 자세히 있습니다.

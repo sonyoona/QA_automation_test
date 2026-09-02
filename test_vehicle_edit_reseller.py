@@ -31,9 +31,16 @@ def _open_carmgmt_edit_modal(page, car_number):
     expect(car_number_input).to_have_value(car_number, timeout=15_000)
 
 
+def _get_modal(page):
+    """지금 열려있는 차량 수정 모달(section) 자체를 가리키는 Locator."""
+    return page.locator("section").filter(has=page.locator('input[name="carNumber"]'))
+
+
 def _get_edit_field(page, label_text):
-    """모달 안에서 라벨 텍스트로 그 바로 다음 형제 요소(입력/드롭다운)를 찾아 돌려준다."""
-    label = page.locator("label.form-label").filter(has_text=re.compile(f"^{re.escape(label_text)}$"))
+    """모달 안에서 라벨 텍스트로 그 바로 다음 형제 요소(입력/드롭다운)를 찾아 돌려준다.
+    목록 화면 필터 영역에도 같은 이름의 라벨(예: "업체")이 있을 수 있어서,
+    지금 열려있는 모달 안으로 범위를 좁힌 뒤 찾는다."""
+    label = _get_modal(page).locator("label.form-label").filter(has_text=re.compile(f"^{re.escape(label_text)}$"))
     return label.locator("xpath=./following-sibling::*[1]")
 
 
