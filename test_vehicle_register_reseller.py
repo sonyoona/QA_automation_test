@@ -155,3 +155,47 @@ def test_TC046_vehicle_register_partner_auto_selected_on_company(logged_in_page,
     partner_text = partner_field.locator(".text").first
     expect(partner_text).not_to_have_text("-")
     expect(partner_field).to_have_attribute("aria-disabled", "true")
+
+
+def test_TC048_vehicle_register_reseller_required_when_partner_lg_uplus(logged_in_page):
+    """
+    TC-048 | 차량 등록 시 파트너 기준 [리셀러 선택 제한] 확인 (파트너가 LG U+인 경우)
+
+    GIVEN  STAFF 웹에 로그인된 상태에서 차량관리>차스펙관리 화면에 진입해, 목록의 [등록] 버튼을 클릭하면
+    WHEN   파트너가 [LG U+]인 업체를 선택하면
+    THEN   리셀러는 [커넥트 또는 LG U+] 중 선택 가능한 상태가 되고, 아직 아무것도 선택되지 않은
+           필수 선택 상태다 (자동으로 값이 채워지지 않음)
+    """
+    page = logged_in_page
+    _open_carspec_register_modal(page)
+
+    _select_company(page, "LG업체입니다")
+
+    reseller_field = _get_form_field(page, "리셀러")
+    reseller_text = reseller_field.locator(".text").first
+    expect(reseller_field).to_have_attribute("aria-disabled", "false")
+    expect(reseller_text).to_have_text("선택")
+
+    reseller_options = reseller_field.locator('[role="option"] .text').all_inner_texts()
+    assert set(reseller_options) == {"커넥트", "LG U+"}, (
+        f"[FAIL] 리셀러 선택지가 [커넥트/LG U+]가 아닙니다: {reseller_options}"
+    )
+
+
+def test_TC050_vehicle_register_reseller_auto_selected_when_partner_smallticket(logged_in_page):
+    """
+    TC-050 | 차량 등록 시 파트너 기준 [리셀러 선택 제한] 확인 (파트너가 스몰티켓인 경우)
+
+    GIVEN  STAFF 웹에 로그인된 상태에서 차량관리>차스펙관리 화면에 진입해, 목록의 [등록] 버튼을 클릭하면
+    WHEN   파트너가 [스몰티켓]인 업체를 선택하면
+    THEN   리셀러는 [스몰티켓]으로 자동 선택되고, 리셀러 항목이 비활성화된다
+    """
+    page = logged_in_page
+    _open_carspec_register_modal(page)
+
+    _select_company(page, "스몰티켓(지입)2")
+
+    reseller_field = _get_form_field(page, "리셀러")
+    reseller_text = reseller_field.locator(".text").first
+    expect(reseller_field).to_have_attribute("aria-disabled", "true")
+    expect(reseller_text).to_have_text(COMPANY_PARTNERS["스몰티켓(지입)2"])
