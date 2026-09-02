@@ -1,3 +1,5 @@
+# GNB 경로: 단말기 > 모니터
+
 import os
 import re
 

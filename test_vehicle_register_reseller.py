@@ -1,3 +1,5 @@
+# GNB 경로: 차량관리 > 차스펙관리 (등록)
+
 import os
 import re
 
