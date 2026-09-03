@@ -53,6 +53,7 @@ def _select_company(page: Page, company_name: str) -> None:
 
 
 @allure.title("TC-043 | 차량 등록 모달 파트너 항목(수정 불가) 노출 확인")
+@allure.label("testcase", "TC-043")
 def test_TC043_vehicle_register_partner_field_visible(logged_in_page: Page) -> None:
     """
     GIVEN  STAFF 웹에 로그인된 상태에서 차량관리>차스펙관리 화면에 진입해, 목록의 [등록] 버튼을 클릭하면
@@ -71,6 +72,7 @@ def test_TC043_vehicle_register_partner_field_visible(logged_in_page: Page) -> N
 
 
 @allure.title("TC-044 | 차량 등록 모달 리셀러 항목 노출 확인")
+@allure.label("testcase", "TC-044")
 def test_TC044_vehicle_register_reseller_field_visible(logged_in_page: Page) -> None:
     """
     GIVEN  STAFF 웹에 로그인된 상태에서 차량관리>차스펙관리 화면에 진입해, 목록의 [등록] 버튼을 클릭하면
@@ -88,6 +90,7 @@ def test_TC044_vehicle_register_reseller_field_visible(logged_in_page: Page) -> 
 
 
 @allure.title("TC-045 | 업체 선택 변경에 따른 파트너·리셀러 상태 전환 확인")
+@allure.label("testcase", "TC-045")
 def test_TC045_vehicle_register_partner_reseller_switch_by_company(logged_in_page: Page) -> None:
     """
     GIVEN  STAFF 웹에 로그인된 상태에서 차량관리>차스펙관리 화면에 진입해, 목록의 [등록] 버튼을 클릭하면
@@ -135,6 +138,7 @@ def test_TC045_vehicle_register_partner_reseller_switch_by_company(logged_in_pag
 
 
 @allure.title("TC-046 | 업체 선택 시 파트너 자동선택(비활성화) 확인 ({company_name})")
+@allure.label("testcase", "TC-046")
 @pytest.mark.parametrize(
     "company_name",
     list(COMPANY_PARTNERS),
@@ -162,6 +166,7 @@ def test_TC046_vehicle_register_partner_auto_selected_on_company(logged_in_page:
 
 
 @allure.title("TC-048 | 파트너가 LG U+인 경우 리셀러 필수 선택 확인")
+@allure.label("testcase", "TC-048")
 def test_TC048_vehicle_register_reseller_required_when_partner_lg_uplus(logged_in_page: Page) -> None:
     """
     GIVEN  STAFF 웹에 로그인된 상태에서 차량관리>차스펙관리 화면에 진입해, 목록의 [등록] 버튼을 클릭하면
@@ -186,6 +191,7 @@ def test_TC048_vehicle_register_reseller_required_when_partner_lg_uplus(logged_i
 
 
 @allure.title("TC-050 | 파트너가 스몰티켓인 경우 리셀러 자동선택(비활성화) 확인")
+@allure.label("testcase", "TC-050")
 def test_TC050_vehicle_register_reseller_auto_selected_when_partner_smallticket(logged_in_page: Page) -> None:
     """
     GIVEN  STAFF 웹에 로그인된 상태에서 차량관리>차스펙관리 화면에 진입해, 목록의 [등록] 버튼을 클릭하면

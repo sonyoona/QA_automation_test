@@ -154,6 +154,7 @@ def _assert_all_rows_have_reseller(page: Page, col_index: int, target_reseller: 
 
 
 @allure.title("TC-084 | 리셀러 필터 노출 확인 ({tab_name} 탭)")
+@allure.label("testcase", "TC-084")
 @pytest.mark.parametrize("tab_name", MONITOR_TABS, ids=MONITOR_TAB_IDS)
 def test_TC084_monitor_reseller_filter_visible(logged_in_page: Page, tab_name: str) -> None:
     """
@@ -172,6 +173,7 @@ def test_TC084_monitor_reseller_filter_visible(logged_in_page: Page, tab_name: s
 
 
 @allure.title("TC-085 | 리셀러 필터 선택 항목 확인 ({tab_name} 탭)")
+@allure.label("testcase", "TC-085")
 @pytest.mark.parametrize("tab_name", MONITOR_TABS, ids=MONITOR_TAB_IDS)
 def test_TC085_monitor_reseller_filter_options(logged_in_page: Page, tab_name: str) -> None:
     """
@@ -190,6 +192,7 @@ def test_TC085_monitor_reseller_filter_options(logged_in_page: Page, tab_name: s
 
 
 @allure.title("TC-086 | 리셀러 필터 조회 결과 확인 ({tab_name} 탭)")
+@allure.label("testcase", "TC-086")
 @pytest.mark.parametrize("tab_name", MONITOR_TABS, ids=MONITOR_TAB_IDS)
 def test_TC086_monitor_reseller_filter_query_result(logged_in_page: Page, tab_name: str) -> None:
     """
@@ -230,6 +233,7 @@ def test_TC086_monitor_reseller_filter_query_result(logged_in_page: Page, tab_na
 
 
 @allure.title("TC-087 | 컬럼 구성 확인 ({tab_name} 탭)")
+@allure.label("testcase", "TC-087")
 @pytest.mark.parametrize("tab_name", MONITOR_TABS, ids=MONITOR_TAB_IDS)
 def test_TC087_monitor_column_composition(logged_in_page: Page, tab_name: str) -> None:
     """

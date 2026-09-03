@@ -15,6 +15,7 @@ pytestmark = allure.feature("로그인 · 권한  ·  test_login.py")
 
 
 @allure.title("TC-103 | 권한 없는 계정 로그인 시 안내 알럿 표시 확인")
+@allure.label("testcase", "TC-103")
 def test_TC103_login_fail_no_permission(page: Page) -> None:
     """
     GIVEN  STAFF 1단계 로그인 화면에서, 아이디·비밀번호는 일치하지만
@@ -32,6 +33,7 @@ def test_TC103_login_fail_no_permission(page: Page) -> None:
 
 
 @allure.title("TC-114 | 2단계 인증 완료 및 세션 저장·갱신 확인")
+@allure.label("testcase", "TC-114")
 def test_TC114_login_success_and_refresh_session(auth_state: str) -> None:
     """
     conftest.py의 auth_state fixture를 그대로 씁니다 — auth.json이 아직 신선하면

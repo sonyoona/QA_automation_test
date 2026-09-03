@@ -79,6 +79,7 @@ def _find_list_col_index(page: Page, header_text: str) -> int:
 
 
 @allure.title("TC-051 | 차량 수정 모달 파트너 항목(수정 불가) 노출 확인")
+@allure.label("testcase", "TC-051")
 def test_TC051_vehicle_edit_partner_field_visible(logged_in_page: Page) -> None:
     """
     GIVEN  STAFF 웹에 로그인된 상태에서 차량관리>차량관리 화면에 진입해, 임의의 차량 [수정] 버튼을 클릭하면
@@ -97,6 +98,7 @@ def test_TC051_vehicle_edit_partner_field_visible(logged_in_page: Page) -> None:
 
 
 @allure.title("TC-052 | 차량 수정 모달 리셀러 항목 노출 확인")
+@allure.label("testcase", "TC-052")
 def test_TC052_vehicle_edit_reseller_field_visible(logged_in_page: Page) -> None:
     """
     GIVEN  STAFF 웹에 로그인된 상태에서 차량관리>차량관리 화면에 진입해, 임의의 차량 [수정] 버튼을 클릭하면
@@ -114,6 +116,7 @@ def test_TC052_vehicle_edit_reseller_field_visible(logged_in_page: Page) -> None
 
 
 @allure.title("TC-053 | 리셀러 값 변경(LG U+↔커넥트) 및 저장 반영 확인")
+@allure.label("testcase", "TC-053")
 def test_TC053_vehicle_edit_reseller_change_and_revert_when_partner_lg_uplus(logged_in_page: Page) -> None:
     """
     GIVEN  STAFF 웹에 로그인된 상태에서 차량관리>차량관리 화면에 진입해,
@@ -167,6 +170,7 @@ def test_TC053_vehicle_edit_reseller_change_and_revert_when_partner_lg_uplus(log
 
 
 @allure.title("TC-054 | 파트너가 커넥트인 경우 리셀러 자동선택(비활성화) 확인")
+@allure.label("testcase", "TC-054")
 def test_TC054_vehicle_edit_reseller_auto_selected_when_partner_connect(logged_in_page: Page) -> None:
     """
     GIVEN  STAFF 웹에 로그인된 상태에서 차량관리>차량관리 화면에 진입해,
@@ -184,6 +188,7 @@ def test_TC054_vehicle_edit_reseller_auto_selected_when_partner_connect(logged_i
 
 
 @allure.title("TC-055 | 파트너가 LG U+인 경우 리셀러 필수 선택 확인")
+@allure.label("testcase", "TC-055")
 def test_TC055_vehicle_edit_reseller_required_when_partner_lg_uplus(logged_in_page: Page) -> None:
     """
     GIVEN  STAFF 웹에 로그인된 상태에서 차량관리>차량관리 화면에 진입해,
@@ -206,6 +211,7 @@ def test_TC055_vehicle_edit_reseller_required_when_partner_lg_uplus(logged_in_pa
 
 
 @allure.title("TC-056 | 파트너가 스몰티켓인 경우 리셀러 자동선택(비활성화) 확인")
+@allure.label("testcase", "TC-056")
 def test_TC056_vehicle_edit_reseller_auto_selected_when_partner_smallticket(logged_in_page: Page) -> None:
     """
     GIVEN  STAFF 웹에 로그인된 상태에서 차량관리>차량관리 화면에 진입해,

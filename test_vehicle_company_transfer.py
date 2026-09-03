@@ -28,6 +28,7 @@ def _select_transfer_company(page: Page, company_name: str) -> None:
 
 
 @allure.title("TC-057 | 업체 변경 시 파트너 값 노출 확인")
+@allure.label("testcase", "TC-057")
 def test_TC057_vehicle_transfer_partner_updates_to_selected_company(logged_in_page: Page) -> None:
     """
     GIVEN  STAFF 웹에 로그인된 상태에서 차량관리>차량관리 화면에 진입해, 임의의 차량 [수정] 버튼을 클릭하면
@@ -47,6 +48,7 @@ def test_TC057_vehicle_transfer_partner_updates_to_selected_company(logged_in_pa
 
 
 @allure.title("TC-058 | 업체 변경 시 리셀러 값 유지 확인")
+@allure.label("testcase", "TC-058")
 def test_TC058_vehicle_transfer_reseller_unchanged(logged_in_page: Page) -> None:
     """
     GIVEN  STAFF 웹에 로그인된 상태에서 차량관리>차량관리 화면에 진입해,

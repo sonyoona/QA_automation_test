@@ -34,7 +34,7 @@ allure open allure-results            # 리포트 열기 (Allure 2는 allure ser
 >
 > `pytest.ini`에 `addopts = --alluredir=... --clean-alluredir`로 고정해둘 수도 있는데, 이 옵션은 실행할 때마다 결과 폴더를 비웁니다. 통합 탭처럼 오래 걸리는 테스트를 따로 돌리고 나머지와 합쳐서 하나의 리포트로 보는 경우가 있어서, **누적이 되도록 일부러 안 넣었습니다.** 새로 시작하고 싶으면 폴더를 직접 지우면 됩니다.
 
-## 적용한 것 — 5가지
+## 적용한 것 — 6가지
 
 ### 1. `@allure.step` — 헬퍼 함수에 부착 (가장 효과 큼)
 
@@ -201,6 +201,22 @@ AssertionError: ...                                ← 원본 메시지는 그�
 pytest --alluredir=allure-results
 python tools/postprocess_allure_results.py     # ← generate/open 하기 전에 실행
 allure generate allure-results -o allure-report
+```
+
+### 6. `@allure.label("testcase", "TC-XXX")` — TC 번호를 리포트 Labels에
+
+**왜**: 사수님 문서에서 *"ID는 세 곳(데코레이터·함수명·docstring)을 같이 맞춘다"*는 원칙을 보고, TC 번호를 리포트에도 라벨로 남겨두면 대조하기 쉬워질 거라 판단했습니다. 처음엔 이름 그대로 `@allure.testcase("TC-043")`을 붙였습니다.
+
+> **겪은 문제 — `@allure.testcase`는 라벨이 아니라 링크였다**
+>
+> 직접 실행해서 결과 JSON을 까보니 `labels`가 아니라 `"links": [{"type": "tms", "url": "TC-043", "name": "TC-043"}]`으로 찍혀 있었습니다. `allure.testcase(url, name=None)`은 `allure.link(url, link_type="tms")`의 별칭이라 **첫 인자를 URL로 취급**합니다. 리포트에는 `TC-043`이 클릭 가능한 링크로 뜨는데, 실제 URL이 아니니 눌러도 깨진 페이지로 갑니다 — "라벨처럼 보이는 링크"라 겉으로는 문제없어 보였습니다.
+>
+> **해결**: `@allure.label("testcase", "TC-XXX")`로 바꿨습니다. 실행해서 확인해보니 `labels`에 `{"name": "testcase", "value": "TC-043"}`으로 정상적으로 들어갑니다. 링크가 필요해지는 시점(TestRail 등 도입, `--allure-link-pattern` 설정 가능)이 오면 그때 `@allure.testcase`로 바꾸면 됩니다.
+
+```python
+@allure.title("TC-043 | 차량 등록 모달 파트너 항목(수정 불가) 노출 확인")
+@allure.label("testcase", "TC-043")
+def test_TC043_vehicle_register_partner_field_visible(logged_in_page: Page) -> None: ...
 ```
 
 ## 리포트 생성 설정 — `allurerc.mjs`
