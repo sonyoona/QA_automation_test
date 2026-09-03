@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "allure-report-preview",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-m", "http.server", "8934", "--directory", "allure-report"],
+      "port": 8934
+    }
+  ]
+}

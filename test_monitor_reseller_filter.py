@@ -3,10 +3,14 @@
 import os
 import re
 
+import allure
 import pytest
-from playwright.sync_api import expect
+from playwright.sync_api import Locator, Page, expect
 
 STAFF_URL = os.getenv("STAFF_URL")
+
+# Allure 리포트에서 이 파일의 테스트들이 묶이는 기능 단위 (파일 상단 GNB 경로와 동일)
+pytestmark = allure.feature("단말기 > 모니터  ·  test_monitor_reseller_filter.py")
 
 MONITOR_TABS = ["통신", "구독끊김", "RT사망", "FaultINFO", "좌표누락", "지하음영", "통합"]
 # pytest가 parametrize 테스트 ID를 만들 때 한글을 \uXXXX로 이스케이프해버려서,
@@ -20,7 +24,8 @@ RESELLER_OPTIONS = ["전체", "LG U+", "스몰티켓", "스몰티켓222", "인�
 # 자세한 설명은 docs/notes/code-notes/모니터-리셀러-필터-테스트-노트.md 참고
 
 
-def _goto_monitor(page, tab_name="통신"):
+@allure.step("단말기>모니터 진입 후 {tab_name} 탭으로 이동")
+def _goto_monitor(page: Page, tab_name: str = "통신") -> None:
     """단말기>모니터 화면으로 이동해 지정한 탭까지 전환하고, 로딩 스피너가 사라질 때까지 기다린다.
     "검색일부터 일주일 전까지" 날짜 필터가 있는 탭이면 오늘 날짜로 맞추고 다시 조회한다
     (기본값이 최근 데이터를 놓치는 범위라 그대로 두면 실제로 있는 데이터도 0건으로 보임)."""
@@ -38,7 +43,8 @@ def _goto_monitor(page, tab_name="통신"):
         page.locator(".spinner").first.wait_for(state="hidden", timeout=60_000)
 
 
-def _open_reseller_dropdown(page):
+@allure.step("리셀러 드롭다운 열기")
+def _open_reseller_dropdown(page: Page) -> Locator:
     """"리셀러" 콤보박스를 열고 그 Locator를 돌려준다."""
     reseller_column = page.locator("div.column", has_text="리셀러")
     reseller_dropdown = reseller_column.get_by_role("combobox")
@@ -46,7 +52,8 @@ def _open_reseller_dropdown(page):
     return reseller_dropdown
 
 
-def _find_reseller_col_index(page):
+@allure.step("헤더에서 '리셀러' 컬럼 위치 찾기")
+def _find_reseller_col_index(page: Page) -> int:
     """현재 테이블에서 "리셀러" 컬럼의 위치(0-based)를 헤더에서 계산해 돌려준다. 탭마다 위치가 달라 매번 계산한다."""
     header_cells = page.locator("table").first.locator("thead tr").first.locator("th")
     count = header_cells.count()
@@ -60,7 +67,7 @@ def _find_reseller_col_index(page):
     raise AssertionError("헤더에서 '리셀러' 컬럼을 찾지 못했습니다")
 
 
-def _get_total_pages(page):
+def _get_total_pages(page: Page) -> int:
     """현재 조회 결과의 전체 페이지 수. 페이지네이션이 없으면(=1페이지) 1을 돌려준다."""
     pagination = page.locator(".pagination")
     if pagination.count() == 0:
@@ -71,7 +78,7 @@ def _get_total_pages(page):
     return int(last_item.get_attribute("value"))
 
 
-def _get_real_row_count(page):
+def _get_real_row_count(page: Page) -> int:
     """실제 데이터 행 개수. "조회 결과가 없습니다" 같은 안내 문구 행(colspan 처리됨)은 0으로 취급한다."""
     rows = page.locator("table").first.locator("tbody tr")
     count = rows.count()
@@ -80,13 +87,14 @@ def _get_real_row_count(page):
     return count
 
 
-def _get_sample_pages(total_pages):
+def _get_sample_pages(total_pages: int) -> list[int]:
     """전체 페이지 중 첫 페이지·중간 페이지·마지막 페이지를 표본으로 뽑는다.
     페이지 수가 적으면(1~2개) 자동으로 중복 없이 있는 것만 남는다."""
     return sorted({1, total_pages, (1 + total_pages) // 2})
 
 
-def _go_to_page(page, target_page):
+@allure.step("{target_page}페이지로 이동")
+def _go_to_page(page: Page, target_page: int) -> None:
     """조회 결과에서 target_page 번째 페이지로 이동한다(1부터 시작). 페이지가 1개뿐이면 아무것도 안 하고 끝난다.
     이동 시도 후 실제로 target_page에 도착했는지 마지막에 확인한다 — 확인 안 하면, 이동이 조용히
     실패해도(예: next 버튼이 비활성 상태) 엉뚱한 페이지를 검사하고 지나칠 수 있다."""
@@ -114,7 +122,8 @@ def _go_to_page(page, target_page):
     )
 
 
-def _go_to_last_page(page):
+@allure.step("[마지막] 버튼으로 마지막 페이지 이동")
+def _go_to_last_page(page: Page) -> None:
     """[마지막] 버튼을 눌러 실제 마지막 페이지로 이동한다.
 
     이 화면은 실시간으로 갱신되는 모니터링 데이터라, _get_total_pages()로 미리 계산해둔
@@ -132,7 +141,8 @@ def _go_to_last_page(page):
     page.locator(".spinner").first.wait_for(state="hidden", timeout=60_000)
 
 
-def _assert_all_rows_have_reseller(page, col_index, target_reseller):
+@allure.step("현재 페이지 전체 행의 리셀러가 {target_reseller}인지 확인")
+def _assert_all_rows_have_reseller(page: Page, col_index: int, target_reseller: str) -> None:
     """현재 화면(한 페이지)의 모든 행에 대해 리셀러 컬럼 값이 target_reseller와 정확히 같은지 전수 확인한다."""
     rows = page.locator("table").first.locator("tbody tr")
     row_count = rows.count()
@@ -143,11 +153,10 @@ def _assert_all_rows_have_reseller(page, col_index, target_reseller):
         )
 
 
+@allure.title("TC-084 | 리셀러 필터 노출 확인 ({tab_name} 탭)")
 @pytest.mark.parametrize("tab_name", MONITOR_TABS, ids=MONITOR_TAB_IDS)
-def test_TC084_monitor_reseller_filter_visible(logged_in_page, tab_name):
+def test_TC084_monitor_reseller_filter_visible(logged_in_page: Page, tab_name: str) -> None:
     """
-    TC-084 | 모니터 전체 탭의 리셀러 필터 노출 확인 (7개 탭 전체)
-
     GIVEN  STAFF 웹에 로그인된 상태에서 단말기>모니터 화면에 진입해, 검증 대상 탭으로 이동하면
     WHEN   화면을 확인하면
     THEN   파트너 필터 대신 리셀러 필터가 노출된다 (7개 탭 모두 동일하게 적용되어야 함)
@@ -162,11 +171,10 @@ def test_TC084_monitor_reseller_filter_visible(logged_in_page, tab_name):
     expect(partner_filter).not_to_be_visible()
 
 
+@allure.title("TC-085 | 리셀러 필터 선택 항목 확인 ({tab_name} 탭)")
 @pytest.mark.parametrize("tab_name", MONITOR_TABS, ids=MONITOR_TAB_IDS)
-def test_TC085_monitor_reseller_filter_options(logged_in_page, tab_name):
+def test_TC085_monitor_reseller_filter_options(logged_in_page: Page, tab_name: str) -> None:
     """
-    TC-085 | 모니터 전체 탭의 리셀러 필터 선택 항목 확인 (7개 탭 전체 · dev 환경)
-
     GIVEN  STAFF 웹에 로그인된 상태에서 단말기>모니터 화면에 진입해, 검증 대상 탭으로 이동하면
     WHEN   리셀러 필터를 클릭하면
     THEN   전체, LG U+, 스몰티켓, 스몰티켓222, 인프라업뎃_파트너변경, 커넥트 항목이 노출된다
@@ -181,11 +189,10 @@ def test_TC085_monitor_reseller_filter_options(logged_in_page, tab_name):
         expect(reseller_dropdown.get_by_role("option", name=option, exact=True)).to_be_visible()
 
 
+@allure.title("TC-086 | 리셀러 필터 조회 결과 확인 ({tab_name} 탭)")
 @pytest.mark.parametrize("tab_name", MONITOR_TABS, ids=MONITOR_TAB_IDS)
-def test_TC086_monitor_reseller_filter_query_result(logged_in_page, tab_name):
+def test_TC086_monitor_reseller_filter_query_result(logged_in_page: Page, tab_name: str) -> None:
     """
-    TC-086 | 모니터 전체 탭의 리셀러 필터 조건에 따른 데이터 조회 확인 (7개 탭 전체 · dev 환경)
-
     GIVEN  STAFF 웹에 로그인된 상태에서 단말기>모니터 화면에 진입해, 검증 대상 탭으로 이동하면
            (탭에 데이터가 아예 없으면 검증할 게 없으므로 skip)
     WHEN   리셀러 필터에서 특정 리셀러(커넥트)를 선택하고 [조회]를 클릭하면
@@ -222,11 +229,10 @@ def test_TC086_monitor_reseller_filter_query_result(logged_in_page, tab_name):
         _assert_all_rows_have_reseller(page, col_index, target_reseller)
 
 
+@allure.title("TC-087 | 컬럼 구성 확인 ({tab_name} 탭)")
 @pytest.mark.parametrize("tab_name", MONITOR_TABS, ids=MONITOR_TAB_IDS)
-def test_TC087_monitor_column_composition(logged_in_page, tab_name):
+def test_TC087_monitor_column_composition(logged_in_page: Page, tab_name: str) -> None:
     """
-    TC-087 | 모니터 전체 탭의 컬럼 구성 확인 (7개 탭 전체)
-
     GIVEN  STAFF 웹에 로그인된 상태에서 단말기>모니터 화면에 진입해, 검증 대상 탭으로 이동하면
     WHEN   테이블 헤더를 확인하면
     THEN   "파트너" 컬럼은 제거되고 "리셀러" 컬럼이 노출된다 (7개 탭 모두 동일하게 적용되어야 함)

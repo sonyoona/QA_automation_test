@@ -3,10 +3,14 @@
 import os
 import re
 
+import allure
 import pytest
-from playwright.sync_api import expect
+from playwright.sync_api import Locator, Page, expect
 
 STAFF_URL = os.getenv("STAFF_URL")
+
+# Allure 리포트에서 이 파일의 테스트들이 묶이는 기능 단위 (파일 상단 GNB 경로와 동일)
+pytestmark = allure.feature("차량관리 > 차스펙관리 (등록)  ·  test_vehicle_register_reseller.py")
 
 # dev 환경에서 실제로 업체를 하나씩 선택해보고 확인한 업체→파트너 매핑 (업체 이름만으로는
 # 소속 파트너를 알 수 없음 — 예: "유플러스"라는 이름의 업체가 실제로는 커넥트 파트너였음)
@@ -19,7 +23,8 @@ COMPANY_PARTNERS = {
 # 자세한 설명은 docs/notes/code-notes/차량등록-파트너리셀러-테스트-노트.md 참고
 
 
-def _open_carspec_register_modal(page):
+@allure.step("차량관리>차스펙관리 진입 후 [등록] 클릭해 모달 열기")
+def _open_carspec_register_modal(page: Page) -> None:
     """차량관리>차스펙관리로 이동해 목록 첫 행의 [등록] 버튼을 눌러 차량 등록 모달을 연다."""
     page.goto(STAFF_URL)
     page.locator("a").filter(has_text=re.compile(r"^차량관리$")).click()
@@ -28,14 +33,15 @@ def _open_carspec_register_modal(page):
     page.get_by_role("button", name="등록", exact=True).first.click()
 
 
-def _get_form_field(page, label_text):
+def _get_form_field(page: Page, label_text: str) -> Locator:
     """"파트너"/"리셀러" 같은 폼 라벨(label.form-label) 텍스트로, 그 바로 다음에 오는
     입력/드롭다운 요소(형제 요소)를 찾아 돌려준다."""
     label = page.locator("label.form-label").filter(has_text=re.compile(f"^{re.escape(label_text)}$"))
     return label.locator("xpath=./following-sibling::*[1]")
 
 
-def _select_company(page, company_name):
+@allure.step("업체 {company_name} 선택")
+def _select_company(page: Page, company_name: str) -> None:
     """"업체" 검색 드롭다운에서 이름으로 검색해 정확히 일치하는 업체를 선택한다."""
     company_field = _get_form_field(page, "업체")
     company_field.click()
@@ -46,10 +52,9 @@ def _select_company(page, company_name):
     option.click()
 
 
-def test_TC043_vehicle_register_partner_field_visible(logged_in_page):
+@allure.title("TC-043 | 차량 등록 모달 파트너 항목(수정 불가) 노출 확인")
+def test_TC043_vehicle_register_partner_field_visible(logged_in_page: Page) -> None:
     """
-    TC-043 | 차량 등록 시 파트너 항목 출력 확인
-
     GIVEN  STAFF 웹에 로그인된 상태에서 차량관리>차스펙관리 화면에 진입해, 목록의 [등록] 버튼을 클릭하면
     WHEN   차량 등록 모달에 진입하면
     THEN   수정 불가능한 파트너 항목이 노출된다 (업체 항목 아래)
@@ -65,10 +70,9 @@ def test_TC043_vehicle_register_partner_field_visible(logged_in_page):
     expect(partner_field).to_have_attribute("aria-disabled", "true")
 
 
-def test_TC044_vehicle_register_reseller_field_visible(logged_in_page):
+@allure.title("TC-044 | 차량 등록 모달 리셀러 항목 노출 확인")
+def test_TC044_vehicle_register_reseller_field_visible(logged_in_page: Page) -> None:
     """
-    TC-044 | 차량 등록 시 리셀러 항목 출력 확인
-
     GIVEN  STAFF 웹에 로그인된 상태에서 차량관리>차스펙관리 화면에 진입해, 목록의 [등록] 버튼을 클릭하면
     WHEN   차량 등록 모달에 진입하면
     THEN   리셀러 항목이 노출된다 (지점 항목 아래, 파트너 항목 오른쪽)
@@ -83,10 +87,9 @@ def test_TC044_vehicle_register_reseller_field_visible(logged_in_page):
     expect(reseller_field).to_be_visible()
 
 
-def test_TC045_vehicle_register_partner_reseller_switch_by_company(logged_in_page):
+@allure.title("TC-045 | 업체 선택 변경에 따른 파트너·리셀러 상태 전환 확인")
+def test_TC045_vehicle_register_partner_reseller_switch_by_company(logged_in_page: Page) -> None:
     """
-    TC-045 | 차량 등록 시 업체 선택 변경에 따른 파트너 및 리셀러 상태 전환 확인
-
     GIVEN  STAFF 웹에 로그인된 상태에서 차량관리>차스펙관리 화면에 진입해, 목록의 [등록] 버튼을 클릭하면
     WHEN   1. 파트너가 [커넥트]인 업체를 선택하면
            2. 파트너가 [LG U+]인 업체로 변경하면
@@ -131,15 +134,14 @@ def test_TC045_vehicle_register_partner_reseller_switch_by_company(logged_in_pag
     expect(reseller_text).to_have_text(COMPANY_PARTNERS["스몰티켓(지입)2"])
 
 
+@allure.title("TC-046 | 업체 선택 시 파트너 자동선택(비활성화) 확인 ({company_name})")
 @pytest.mark.parametrize(
     "company_name",
     list(COMPANY_PARTNERS),
     ids=["connect_company", "lg_uplus_company", "smallticket_company"],
 )
-def test_TC046_vehicle_register_partner_auto_selected_on_company(logged_in_page, company_name):
+def test_TC046_vehicle_register_partner_auto_selected_on_company(logged_in_page: Page, company_name: str) -> None:
     """
-    TC-046 | 업체 선택 시 파트너 자동선택 확인 (파트너가 다른 업체 3개로 검증)
-
     GIVEN  STAFF 웹에 로그인된 상태에서 차량관리>차스펙관리 화면에 진입해, 목록의 [등록] 버튼을 클릭하면
     WHEN   임의의 업체를 선택하면
     THEN   해당 업체의 파트너가 자동으로 선택되고, 사용자가 변경할 수 없도록 비활성화되어 있다
@@ -159,10 +161,9 @@ def test_TC046_vehicle_register_partner_auto_selected_on_company(logged_in_page,
     expect(partner_field).to_have_attribute("aria-disabled", "true")
 
 
-def test_TC048_vehicle_register_reseller_required_when_partner_lg_uplus(logged_in_page):
+@allure.title("TC-048 | 파트너가 LG U+인 경우 리셀러 필수 선택 확인")
+def test_TC048_vehicle_register_reseller_required_when_partner_lg_uplus(logged_in_page: Page) -> None:
     """
-    TC-048 | 차량 등록 시 파트너 기준 [리셀러 선택 제한] 확인 (파트너가 LG U+인 경우)
-
     GIVEN  STAFF 웹에 로그인된 상태에서 차량관리>차스펙관리 화면에 진입해, 목록의 [등록] 버튼을 클릭하면
     WHEN   파트너가 [LG U+]인 업체를 선택하면
     THEN   리셀러는 [커넥트 또는 LG U+] 중 선택 가능한 상태가 되고, 아직 아무것도 선택되지 않은
@@ -184,10 +185,9 @@ def test_TC048_vehicle_register_reseller_required_when_partner_lg_uplus(logged_i
     )
 
 
-def test_TC050_vehicle_register_reseller_auto_selected_when_partner_smallticket(logged_in_page):
+@allure.title("TC-050 | 파트너가 스몰티켓인 경우 리셀러 자동선택(비활성화) 확인")
+def test_TC050_vehicle_register_reseller_auto_selected_when_partner_smallticket(logged_in_page: Page) -> None:
     """
-    TC-050 | 차량 등록 시 파트너 기준 [리셀러 선택 제한] 확인 (파트너가 스몰티켓인 경우)
-
     GIVEN  STAFF 웹에 로그인된 상태에서 차량관리>차스펙관리 화면에 진입해, 목록의 [등록] 버튼을 클릭하면
     WHEN   파트너가 [스몰티켓]인 업체를 선택하면
     THEN   리셀러는 [스몰티켓]으로 자동 선택되고, 리셀러 항목이 비활성화된다

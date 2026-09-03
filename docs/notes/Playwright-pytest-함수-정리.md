@@ -347,5 +347,104 @@ return headers.index(header_text)
 ```
 `all_inner_texts()`(04번)로 헤더 글자들을 리스트로 뽑아온 다음, 원하는 헤더 글자가 몇 번째 컬럼인지 찾을 때 씁니다 — 컬럼 위치를 숫자로 하드코딩하지 않고 헤더 텍스트로 찾아내는 패턴의 핵심 부분입니다.
 
+## 12. 타입 어노테이션 (type annotation)
+
+지금까지 나온 함수들은 전부 **"무슨 기능을 하는가"**였다면, 이건 조금 다릅니다 — 그 함수에 **"어떤 타입의 값이 들어오고 나가는지"**를 코드 자체에 적어두는 문법입니다. 새 기능이 아니라, 이미 있는 함수들 위에 "타입 표시"를 얹는 것이라 이 문서 맨 뒤에 따로 뺐습니다.
+
+```python
+def _get_edit_field(page: Page, label_text: str) -> Locator:
+    ...
+```
+
+**매개변수 뒤의 `: 타입`** — `page: Page`는 "page라는 매개변수엔 Page 타입의 값이 들어온다"는 뜻입니다.
+**화살표 뒤의 `-> 타입`** — `-> Locator`는 "이 함수는 끝나면 Locator 타입의 값을 돌려준다"는 뜻입니다.
+
+**왜 쓰는가**
+
+- **PyCharm 자동완성이 정확해집니다.** `page: Page`라고 타입을 명시해두면, 그 이후 `page.`을 입력할 때 실제로 `Page` 객체가 갖고 있는 메서드(`.goto`, `.locator`, `.get_by_role`...) 목록이 정확히 뜹니다. 타입이 없으면 PyCharm이 이 값이 뭔지 몰라서 자동완성이 부정확하거나 아예 안 뜹니다.
+- **실수를 실행 전에 잡아줍니다.** 문자열이 들어와야 할 자리에 실수로 다른 타입을 넘기면 PyCharm이 코드를 돌려보기도 전에 밑줄로 경고해줍니다.
+- **함수 자체가 설명서가 됩니다.** `def _select_reseller(page, value):`만 보면 `value`에 뭘 넣어야 하는지 함수 안을 읽어봐야 알 수 있는데, `def _select_reseller(page: Page, value: str) -> None:`라고 적혀 있으면 "리셀러 이름 문자열을 넣으면 되는구나"가 코드만 보고 바로 보입니다.
+
+> **주의 — 파이썬은 이 타입을 강제로 검사하지 않습니다**
+>
+> `page: Page`라고 적어놔도, 실행 시점에 파이썬이 "진짜 Page 타입 맞아?"라고 검사하지는 않습니다(자바·타입스크립트 같은 언어와 다른 점). 어디까지나 **PyCharm 같은 에디터와 사람이 읽으라고 남기는 힌트**입니다. 강제로 검사하고 싶다면 `mypy`·`pyright` 같은 별도 도구를 돌려야 하는데, 이 프로젝트에서는 아직 그 단계까지는 안 쓰고 "에디터 자동완성 + 문서화" 용도로만 쓰고 있습니다.
+
+**어디서 타입을 가져오나** — Playwright가 제공하는 타입은 `playwright.sync_api`에서 그대로 import합니다.
+```python
+from playwright.sync_api import Page, Locator, Browser, BrowserType, expect
+```
+`page`(탭), `Locator`(찾은 요소), `browser`(브라우저 프로그램), `browser_type`(브라우저 엔진 발사대) — 이미 02·03·10번에서 다룬 그 객체들이 각각 이 타입입니다.
+
+**`Generator[...]` — `yield`가 있는 함수의 반환 타입**
+
+`logged_in_page` fixture는 `yield`를 쓰기 때문에(06번의 "fixture는 준비→건네주고→정리" 패턴), 보통 함수와는 반환 타입 표기가 다릅니다.
+
+```python
+from typing import Generator
+
+@pytest.fixture
+def logged_in_page(browser: Browser, auth_state: str) -> Generator[Page, None, None]:
+    context = browser.new_context(storage_state=auth_state)
+    page = context.new_page()
+    yield page          # ← 1번째 자리(Page): 여기서 밖으로 내보내는 값의 타입
+    context.close()
+```
+
+`Generator[YieldType, SendType, ReturnType]` 세 자리는 각각 다릅니다:
+
+| 자리 | 이름 | 뜻 | 이 프로젝트에서 |
+|---|---|---|---|
+| 1번째 | YieldType | `yield`로 내보내는 값의 타입 | `Page` — `yield page` |
+| 2번째 | SendType | 제너레이터에 `.send(값)`으로 넣어줄 값의 타입 | `None` — 아무도 `.send()` 안 씀 |
+| 3번째 | ReturnType | 함수가 끝날 때 `return`으로 내보내는 값의 타입 | `None` — 별도 return 값 없음 |
+
+**`_login_and_save(browser_type: BrowserType) -> None:`처럼 그냥 `None`인 함수와의 차이**는, 함수 안에 `yield`가 있냐 없냐입니다. `yield`가 하나라도 있으면 그 함수는 "제너레이터 함수"가 되어 반환 타입을 `Generator[...]`로 적어야 하고, `yield` 없이 `return`만 쓰거나 아무것도 안 돌려주면 그냥 `None`이나 `str` 같은 단순한 타입 하나로 충분합니다.
+
+### 세 자리를 실제로 다 써보면 — 방향과 타이밍 비교
+
+이 프로젝트의 fixture는 YieldType만 실제로 쓰이고 나머지 둘은 `None`이라 감이 잘 안 올 수 있습니다. 세 개를 전부 쓰는 가상의 예시로 비교하면 역할이 뚜렷해집니다.
+
+```python
+def counter() -> Generator[int, str, str]:
+    total = 0
+    while True:
+        cmd = yield total      # ① YieldType(int): total을 밖으로 내보냄
+                                # ③ SendType(str): 밖에서 .send()로 넣어준 값이 cmd에 들어옴
+        if cmd == "stop":
+            return "done"       # ② ReturnType(str): 완전히 끝날 때 딱 한 번
+        total += 1
+```
+
+| | YieldType | SendType | ReturnType |
+|---|---|---|---|
+| 방향 | 함수 **밖으로** 나감 | 함수 **안으로** 들어감 | 함수 **밖으로** 나감 (마지막 1번) |
+| 트리거 | `yield 값` | `제너레이터.send(값)` | `return 값` |
+| 몇 번 | `yield`가 있는 만큼 여러 번 | `.send()` 호출한 만큼 여러 번 | 딱 1번(끝날 때) |
+
+### "누가 받고 누가 보내는지"는 코드 어디에도 안 적혀 있는데 어떻게 정해지나
+
+**순수 제너레이터라면 코드에 그대로 보입니다** — `next()`나 `.send()`를 직접 호출하는 그 코드가 "받는 쪽"/"보내는 쪽"입니다.
+
+```python
+g = gen()
+value = next(g)     # ← 여기가 "받는 쪽" (이 줄이 코드로 명시되어 있음)
+g.send("안녕")       # ← 여기가 "보내는 쪽"
+```
+
+**근데 pytest fixture 코드엔 `next()`도 `.send()`도 안 보입니다.** 이건 pytest가 그 호출을 대신 해주기 때문입니다. 실제로 벌어지는 일을 풀어보면 이렇습니다.
+
+```python
+# pytest가 테스트 실행 전에 뒤에서 대신 해주는 일 (의사코드)
+gen = logged_in_page(browser, auth_state)   # fixture 함수 호출 → 제너레이터 객체 생성
+page = next(gen)                             # yield까지 실행시켜 값을 받음
+test_TC051_...(logged_in_page=page)          # 이름이 같은 매개변수에 그 값을 넣어 테스트 호출
+# 테스트가 끝나면
+next(gen)   # 다시 진행시켜 yield 뒤(context.close())까지 마저 실행 → StopIteration
+```
+
+**"어떤 함수가 받는지"를 정하는 규칙은 "이름이 똑같은지" 딱 하나입니다.** `@pytest.fixture`로 등록된 함수 이름이 `logged_in_page`고, 테스트 함수의 매개변수 이름도 `logged_in_page`면, pytest가 테스트를 실행하기 전에 그 이름을 보고 자동으로 연결해줍니다 — `자동화-테스트-노트.md`의 "conftest.py를 pytest가 왜 자동으로 불러오나"와 같은 종류의 이름 기반 자동 연결입니다.
+
+**`send`가 왜 항상 `None`인가도 같은 이유**: 위 의사코드의 `next(gen)`은 내부적으로 `gen.send(None)`과 동일합니다(`next()`는 "보낼 값 없이 그냥 진행시켜라"의 축약형). pytest는 fixture를 재개시킬 때 항상 `None`만 보내고, 테스트 함수가 fixture 안으로 값을 밀어 넣을 통로 자체를 열어주지 않습니다. 그래서 pytest fixture에서는 `SendType`이 `None`이 아닌 경우가 거의 없습니다 — pytest 설계상 그 기능 자체를 안 쓰기 때문입니다.
+
 ---
 `test_login.py` · `conftest.py` · `test_monitor_reseller_filter.py` · `test_vehicle_register_reseller.py` · `test_vehicle_edit_reseller.py` · `test_vehicle_company_transfer.py` 전체를 훑어서 정리했습니다. 개념 설명(fixture가 정확히 뭔지, scope 차이 등)은 `docs/notes/자동화-테스트-노트.md`에 더 자세히 있습니다.

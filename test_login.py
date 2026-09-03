@@ -1,19 +1,22 @@
 import os
 
-from playwright.sync_api import expect
+import allure
+from playwright.sync_api import Page, expect
 
 STAFF_URL = os.getenv("STAFF_URL")
 
 NOAUTH_EMAIL = os.getenv("STAFF_NOAUTH_EMAIL")
 NOAUTH_PASSWORD = os.getenv("STAFF_NOAUTH_PASSWORD")
 
+# Allure 리포트에서 이 파일의 테스트들이 묶이는 기능 단위
+pytestmark = allure.feature("로그인 · 권한  ·  test_login.py")
+
 # 자세한 설명은 docs/notes/code-notes/로그인-테스트-노트.md 참고
 
 
-def test_TC103_login_fail_no_permission(page):
+@allure.title("TC-103 | 권한 없는 계정 로그인 시 안내 알럿 표시 확인")
+def test_TC103_login_fail_no_permission(page: Page) -> None:
     """
-    TC-103 | 계정 일치하나 시스템관리자·설치관리자 권한이 아닌 계정 로그인 시 안내 알럿 표시 확인
-
     GIVEN  STAFF 1단계 로그인 화면에서, 아이디·비밀번호는 일치하지만
            시스템관리자·설치관리자 권한이 아닌 계정(testyoona)일 때
     WHEN   아이디·비밀번호를 입력하고 로그인하면
@@ -28,11 +31,9 @@ def test_TC103_login_fail_no_permission(page):
     expect(page.get_by_text("권한이 없는 계정입니다")).to_be_visible()
 
 
-def test_TC114_login_success_and_refresh_session(auth_state):
+@allure.title("TC-114 | 2단계 인증 완료 및 세션 저장·갱신 확인")
+def test_TC114_login_success_and_refresh_session(auth_state: str) -> None:
     """
-    TC-114 | 인증번호 일치 시 2단계 인증 완료 및 관리자 메인화면 이동 확인
-             (+ auth.json이 신선하지 않을 때만 갱신)
-
     conftest.py의 auth_state fixture를 그대로 씁니다 — auth.json이 아직 신선하면
     로그인을 건너뛰고 그 파일을 그대로 재사용하며, 만료됐거나 없으면 그때만 실제
     로그인(+사람이 인증번호 직접 입력)을 수행해서 새로 저장합니다.

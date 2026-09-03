@@ -18,5 +18,9 @@ __pycache__/
 test-results/
 playwright-report/
 
+# Allure 산출물 (실행할 때마다 새로 생기는 결과·리포트라 커밋하지 않음)
+allure-results/
+allure-report/
+
 # PyCharm 프로젝트 설정
 .idea/

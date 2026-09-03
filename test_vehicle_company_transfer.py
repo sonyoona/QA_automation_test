@@ -1,9 +1,13 @@
 # GNB 경로: 차량관리 > 차량관리 (수정 - 업체 변경)
 
-from playwright.sync_api import expect
+import allure
+from playwright.sync_api import Page, expect
 
 from test_vehicle_edit_reseller import CAR_PARTNER_CONNECT, _get_edit_field, _open_carmgmt_edit_modal
 from test_vehicle_register_reseller import COMPANY_PARTNERS
+
+# Allure 리포트에서 이 파일의 테스트들이 묶이는 기능 단위 (파일 상단 GNB 경로와 동일)
+pytestmark = allure.feature("차량관리 > 차량관리 (업체 변경)  ·  test_vehicle_company_transfer.py")
 
 # 같은 모달(차량관리>차량관리 수정)을 다루므로 test_vehicle_edit_reseller.py의 헬퍼를 그대로 가져다 씀
 # 업체→파트너 매핑도 test_vehicle_register_reseller.py의 COMPANY_PARTNERS를 그대로 재사용
@@ -11,7 +15,8 @@ from test_vehicle_register_reseller import COMPANY_PARTNERS
 # 자세한 설명은 docs/notes/code-notes/차량업체변경-테스트-노트.md 참고
 
 
-def _select_transfer_company(page, company_name):
+@allure.step("인수받을 업체로 {company_name} 선택")
+def _select_transfer_company(page: Page, company_name: str) -> None:
     """"업체"(인수받을 업체) 검색 드롭다운에서 이름으로 검색해 정확히 일치하는 업체를 선택한다."""
     company_field = _get_edit_field(page, "업체")
     company_field.click()
@@ -22,10 +27,9 @@ def _select_transfer_company(page, company_name):
     option.click()
 
 
-def test_TC057_vehicle_transfer_partner_updates_to_selected_company(logged_in_page):
+@allure.title("TC-057 | 업체 변경 시 파트너 값 노출 확인")
+def test_TC057_vehicle_transfer_partner_updates_to_selected_company(logged_in_page: Page) -> None:
     """
-    TC-057 | 업체 변경 시 파트너 값 노출 확인
-
     GIVEN  STAFF 웹에 로그인된 상태에서 차량관리>차량관리 화면에 진입해, 임의의 차량 [수정] 버튼을 클릭하면
     WHEN   인수받을 업체를 선택하면
     THEN   그 업체의 파트너가 비활성화 상태로 출력된다 (선택한 업체 기준으로 전환됨)
@@ -42,10 +46,9 @@ def test_TC057_vehicle_transfer_partner_updates_to_selected_company(logged_in_pa
     expect(partner_field).to_have_attribute("aria-disabled", "true")
 
 
-def test_TC058_vehicle_transfer_reseller_unchanged(logged_in_page):
+@allure.title("TC-058 | 업체 변경 시 리셀러 값 유지 확인")
+def test_TC058_vehicle_transfer_reseller_unchanged(logged_in_page: Page) -> None:
     """
-    TC-058 | 업체 변경 시 리셀러 값 노출 확인
-
     GIVEN  STAFF 웹에 로그인된 상태에서 차량관리>차량관리 화면에 진입해,
            파트너가 [커넥트]인 차량(리셀러도 커넥트)의 [수정] 버튼을 클릭하면
     WHEN   인수받을 업체를 파트너가 다른(LG U+) 업체로 변경하면

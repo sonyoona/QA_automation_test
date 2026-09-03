@@ -136,6 +136,29 @@ dev 환경에서 업체 이름만으로는 소속 파트너를 알 수 없어서
 
 <br>
 
+## Allure 3 리포트
+
+Allure 3는 pytest 실행 결과를 테스트 제목, 단계, 실패 스크린샷·콘솔 로그 등으로 정리해 주는 테스트 리포트 도구입니다.
+이 프로젝트에서는 실패한 테스트의 증적을 자동으로 첨부하며, 실행 결과는 HTML 리포트로 확인할 수 있습니다.
+
+```bash
+# Python 연동 패키지 설치
+pip install allure-pytest
+
+# Allure 3 CLI 설치 (Node.js/npm 필요)
+npm install -g allure
+```
+
+리포트를 생성하려면 테스트 실행 시 결과 폴더를 지정한 뒤 Allure를 실행합니다.
+
+```bash
+pytest -v --alluredir=allure-results
+allure generate allure-results --clean -o allure-report
+allure open allure-report
+```
+
+<br>
+
 ## 실행 방법
 
 ```bash
