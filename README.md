@@ -152,8 +152,8 @@ npm install -g allure
 리포트를 생성하려면 테스트 실행 시 결과 폴더를 지정한 뒤 Allure를 실행합니다.
 
 ```bash
-pytest -v --alluredir=allure-results
-allure generate allure-results --clean -o allure-report
+pytest -v --alluredir=allure-results --clean-alluredir
+allure generate -o allure-report allure-results
 allure open allure-report
 ```
 
