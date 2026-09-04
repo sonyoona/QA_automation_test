@@ -83,6 +83,32 @@ def _add_class_method_labels(data: dict, test_class: str, test_method: str) -> N
         labels.append({"name": "testMethod", "value": test_method})
 
 
+def _clean_feature_label(data: dict) -> None:
+    """feature 라벨 값에서 뒤에 붙은 파일명(" · xxx.py") 부분을 잘라낸다.
+
+    테스트 코드는 `allure.feature("화면명  ·  test_xxx.py")`처럼 화면 분류와 파일명을
+    한 문자열에 같이 적는다(파일 상단 GNB 경로 주석과 맞추는 관례). 하지만 리포트의
+    Labels 탭에서는 feature·testClass·testMethod가 각자 뜻이 다른데 feature 안에
+    파일명까지 들어있으면 testClass와 내용이 겹쳐 보인다. testClass가 이미 파일명을
+    담당하므로, feature에서는 그 부분만 제거하고 화면명만 남긴다.
+
+    예: "로그인 · 권한  ·  test_login.py" -> "로그인 · 권한"
+        "단말기 > 모니터  ·  test_monitor_reseller_filter.py" -> "단말기 > 모니터"
+
+    "·"가 없거나 마지막 조각이 .py로 안 끝나면 손대지 않는다(멱등성 보장 — 이미
+    정리된 값을 다시 돌려도 바뀌지 않는다).
+    """
+    for label in data.get("labels", []):
+        if label.get("name") != "feature":
+            continue
+        value = label.get("value") or ""
+        if "·" not in value:
+            continue
+        parts = [p.strip() for p in value.split("·")]
+        if parts and parts[-1].endswith(".py"):
+            label["value"] = " · ".join(parts[:-1])
+
+
 def process_result_file(path: str) -> bool:
     """result.json 하나를 처리한다. 처리 대상이 아니면(fullName 없음 등) False."""
     with open(path, encoding="utf-8") as f:
@@ -96,6 +122,7 @@ def process_result_file(path: str) -> bool:
     test_class = f"{module_name}.py"
 
     _add_class_method_labels(data, test_class, func_name)
+    _clean_feature_label(data)
 
     if data.get("status") in ("failed", "broken") and data.get("statusDetails"):
         _prepend_korean_summary(data["statusDetails"], test_class, func_name)

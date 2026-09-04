@@ -49,6 +49,33 @@
 - **skip 사유가 "데이터가 없다"일 때는 표본을 충분히 본 뒤에 판단한다.** 1페이지만 보고 없다고 단정하지 않는다 — 페이지를 넓히거나 다른 탭·조건까지 확인한 뒤 skip 여부를 정한다.
 - **"데이터가 없다"는 skip 메시지가 환경 장애를 가릴 수 있다.** 세션이 서버에서 끊기거나 페이지 로딩이 실패해도 조회 결과가 빈 것처럼 보인다. skip이 나오면 같은 조건으로 화면을 다시 열어 **실제로 데이터가 없는 건지, 로그인·로딩이 실패한 건지**부터 구분한다.
 
+## 실행 전제와 실패 구분
+
+- 로그인 실패·서버 접속 불가처럼 **테스트 대상 기능에 도달하기도 전에** 막히는 경우는 "환경 문제"로 구분하고, 실제 화면 동작이 기대와 다른 "기능 검증 실패"와 섞지 않는다.
+- fixture(`logged_in_page` 등) 단계에서 실패하면 pytest가 이미 `ERROR`로 표시해 일반 실패(`FAIL`)와 구분된다 — 이 구분을 그대로 살린다. 테스트 본문 안에서 로그인·페이지 이동 실패를 `try/except`로 삼켜 assert 하나로 뭉개지 않는다.
+- **연속으로 `E`(error)가 쏟아지면 기능 버그보다 환경 문제(세션 충돌 등)를 먼저 의심한다** (위 "pytest를 동시에 두 개 이상 돌리지 않는다" 참고). 실패(`F`) 한 건 뒤로 `E`가 줄줄이 이어지는 패턴이 전형적인 신호다.
+- `pytest.skip`을 "데이터 없음"으로 처리하기 전에도 같은 원칙이 적용된다 — 세션 끊김·로딩 실패로 결과가 비어 보이는 것과 실제로 데이터가 없는 것을 구분한다 (아래 `pytest.skip 사용 기준` 참고). 이 섹션과 그 섹션은 "환경 문제와 기능 결과를 섞지 않는다"는 같은 원칙의 두 적용 사례다.
+
+## 변경성(mutating) 테스트 준비 — 최소 규칙
+
+지금 있는 테스트는 전부 읽기 전용이라 아직 위험이 없지만, 등록/수정/삭제 TC를 실측·추가할 예정이라
+그 전에 최소한의 뼈대만 미리 정해둔다. 세부 구현(URL 판별 방식, 접두어 형식 등)은 실측 시 화면·환경을
+직접 보고 확정하며, 확정되면 이 섹션과 관련 code-notes를 함께 갱신한다.
+
+**① 실행 환경 안전장치**
+- mutating 테스트는 명시적 옵트인 없이는 실행되지 않는다 — `.env`에 `ALLOW_MUTATING_TESTS=true`가 없으면 mutating 테스트가 setup 단계에서 스스로 skip한다.
+- `STAFF_URL`이 운영(prod) 도메인인지 구분할 수 있는 근거가 지금은 없다(`.env.example`엔 dev/prod 구분 값이 없음). **운영 도메인 패턴이 확인되는 즉시**, 위 옵트인과 별개로 "운영 URL이면 mutating 테스트를 무조건 차단"하는 하드 가드를 추가한다.
+
+**② 테스트 데이터 정리(cleanup) 기준**
+- mutating 테스트가 생성하는 데이터에는 자동 생성분임을 구분할 수 있는 접두어를 붙인다(예: `QA_AUTO_` + 타임스탬프). 정확한 형식은 화면의 이름/코드 필드 제약(길이, 허용 문자)을 실측한 뒤 정한다.
+- 테스트가 만든 데이터는 그 테스트 안에서 삭제·원상복구까지 책임진다(setup에서 만들면 teardown에서 지운다). **정리(cleanup)에 실패하면 그 자체를 테스트 실패로 본다** — 예외를 삼켜 조용히 넘어가지 않는다.
+- 구조상 삭제가 불가능한 데이터(이력성 로그 등)는 mutating 테스트 대상에서 제외하거나, 남는 데이터를 code-notes에 목록으로 남겨 추적한다.
+
+**③ 테스트 태그/실행 범위**
+- pytest marker `mutating`을 정의하고(`pytest.ini`에 `markers = mutating: 데이터를 변경하는 테스트`), 모든 mutating 테스트에 `@pytest.mark.mutating`을 붙인다.
+- 기본 실행(`pytest -v`)은 marker 유무와 무관하게 전부 돈다. 읽기 전용만 빠르게 돌리고 싶으면 `pytest -m "not mutating" -v`, mutating만 돌리려면 `pytest -m mutating -v`.
+- `smoke`·`readonly` 같은 추가 marker는 지금 쓸 곳이 확인된 게 없어 만들지 않는다 — 필요해지면 그때 추가한다(안 쓰는 marker를 미리 만들면 뭘 기준으로 태깅해야 하는지 기준 없이 방치된다).
+
 ## 테스트 독립성
 
 - 각 테스트는 다른 테스트의 실행 결과·순서에 의존하지 않는다. TC A가 만든 데이터를 TC B가 전제로 쓰지 않는다.
@@ -62,13 +89,16 @@
 
 ## 테스트 코드 컨벤션
 
-- 함수명: `test_TC<번호>_<영문 설명>` (예: `test_TC086_monitor_reseller_filter_query_result`)
+- **함수명: `test_<영문 설명>` — TC ID는 넣지 않는다.** (예: `test_monitor_reseller_filter_query_result`)
+  - (2026-09-04 변경) 기존 TC(`TC-001`~`TC-1xx`대)는 `test_TC<번호>_<영문 설명>`로 이미 작성돼 있고 소급 변경하지 않는다. **새 TC부터**는 함수명에서 번호를 뺀다 — 새 TC ID 형식(`TC-YYMMDD-001`, 아래 "TC ID 형식" 참고)은 하이픈이 있어 파이썬 식별자로 쓸 수 없고, 그대로 욱여넣으면(`test_TC260904001_...`) 읽기가 나빠진다.
+  - ID와 함수의 연결은 함수명이 아니라 `@allure.label("testcase", "TC-260904-001")` 데코레이터가 **유일한 정본**이다. 실행 시 필요한 ID 기반 필터링(`pytest -m tc_260904`)은 이 값에서 conftest 훅이 자동으로 마커를 만들어 처리한다 — 아래 "TC ID 형식과 배포 단위 실행" 참고.
 - 여러 탭/화면에 동일 로직을 반복 검증할 땐 `@pytest.mark.parametrize`로 묶는다. 한글 파라미터는 pytest가 테스트 ID를 `\uXXXX`로 이스케이프하므로 `ids=`로 영문 id를 따로 지정한다.
 - **테스트 제목은 `@allure.title` 한 곳에만 둔다.** `TC-XXX | 한 줄 요약` 형식으로 쓰고, docstring 첫 줄에 같은 요약을 반복하지 않는다 — 두 곳에 적으면 나중에 한쪽만 고쳐져 서로 어긋난다(실제로 겪음).
 - 모든 테스트 함수 docstring은 GIVEN/WHEN/THEN 형식으로 작성한다. 요약은 빼고 상세만 담는다:
   ```python
-  @allure.title("TC-XXX | 한 줄 요약")
-  def test_TCXXX_...(logged_in_page: Page) -> None:
+  @allure.label("testcase", "TC-260904-001")
+  @allure.title("TC-260904-001 | 한 줄 요약")
+  def test_...(logged_in_page: Page) -> None:
       """
       GIVEN  사전 조건
       WHEN   수행하는 동작
@@ -88,11 +118,124 @@
 - **`@allure.title`** — 모든 테스트에 붙인다. 파라미터가 있으면 `{tab_name}`처럼 값을 끼워 넣어 리포트에서 케이스가 구분되게 한다.
 - **`@allure.step`** — UI를 조작하는 헬퍼(진입·선택·이동·저장 등)에 붙인다. 실패했을 때 어느 단계에서 깨졌는지 리포트에서 바로 보인다. 다만 **한 줄짜리 단순 조회 헬퍼까지 다 붙이지는 않는다** — 단계가 3~5개로 나뉘는 흐름에만 의미가 있다.
   - step 문구에 문자열 파라미터를 넣을 땐 **따옴표를 직접 쓰지 않는다.** Allure가 자체적으로 붙여줘서 `''값''`처럼 두 번 찍힌다.
-- **`pytestmark = allure.feature(...)`** — 파일 맨 위에 한 줄. 값은 그 파일 상단의 GNB 경로 주석과 동일하게 맞춘다(분류 체계를 새로 만들지 않는다).
+- **`pytestmark = allure.feature(...)`** — 파일 맨 위에 한 줄. 값은 그 파일 상단의 GNB 경로 주석과 동일하게 맞춘다(분류 체계를 새로 만들지 않는다). 코드에는 관례대로 `"화면명  ·  test_xxx.py"`처럼 파일명까지 적어도 되는데, `postprocess_allure_results.py`가 리포트에서는 그 파일명 부분을 잘라내고 화면명만 남긴다 — 아래 "Labels 정리" 참고.
 - **첨부(스크린샷·콘솔 로그)는 실패한 테스트에만** 남긴다(`conftest.py`가 자동 처리). 통과한 것까지 붙이면 리포트만 무거워진다.
 - **`@allure.label("testcase", "TC-XXX")`** — 모든 테스트에 붙인다. TC 번호가 리포트 Labels에 텍스트로 남아 `@allure.title`·함수명과 세 곳이 어긋나지 않았는지 대조하기 쉬워진다.
   > **`@allure.testcase(...)`를 쓰지 않는 이유**: 이름 때문에 순수 라벨처럼 보이지만 실제로는 `allure.link(url, link_type="tms")`의 별칭이라 **첫 인자를 URL로 취급한다.** `@allure.testcase("TC-043")`을 그대로 쓰면 리포트에 `TC-043`이라는 문자열이 그대로 클릭 가능한 링크로 뜨는데, 실제 URL이 아니라서 눌러도 깨진 페이지로 간다 (직접 실행해 결과 JSON을 까본 뒤 발견 — `links: [{"type": "tms", "url": "TC-043", ...}]`으로 찍혔다). TestRail 같은 도구를 도입해 `--allure-link-pattern`으로 실제 URL을 만들 수 있게 되면 그때 `@allure.testcase`로 바꾼다.
 - `@allure.severity`는 **쓰지 않는다** — TC 문서에 심각도 컬럼이 없다. 근거가 생기면 그때 붙인다.
+
+### TC ID 형식과 배포 단위 실행 (2026-09-04 추가)
+
+TC 엑셀 쪽 규칙은 `docs/tc-generation/AI_TC_초안_작성_지침_통합본.md` §14.1 참고. 여기는 그 ID를 자동화 코드에서 다루는 법만 담는다.
+
+- **새 TC 파일부터 TC ID에 배포(예정)일자 접두어가 붙는다** — `TC-YYMMDD-001` (예: `TC-260904-001`). 파일마다 001부터 새로 시작하므로, 이전처럼 전역에서 다음 빈 번호를 찾을 필요가 없다.
+- **기존 TC(`TC-001`~`TC-1xx`대)는 그대로 둔다.** 소급 변경 대상이 아니다 — 새 형식과 옛 형식이 코드 안에 섞여 있어도 문제없다.
+- **배포일이 밀리면 배포 전까지만 엑셀·코드의 ID를 함께 치환한다.** 배포가 이미 나간 뒤에는 바꾸지 않는다 — 슬랙 공유·리포트가 이미 그 ID를 가리키고 있기 때문이다.
+- **`conftest.py`의 `pytest_collection_modifyitems` 훅이 `@allure.label("testcase", ...)` 값에서 `tc_<날짜>`·`tc_<날짜>_<순번>` 마커를 자동으로 만든다.** 데코레이터가 정본이라 마커가 따로 어긋날 일이 없다.
+  ```bash
+  pytest -m tc_260904          # 이 배포(엑셀 파일) 분만 실행 — 여러 파일에 흩어져 있어도 한 번에
+  pytest -m tc_260904_001      # TC 하나만
+  ```
+- 이 마커들은 날짜마다 새로 생겨서 `pytest.ini`에 미리 등록해두지 않는다 — 지금 이 프로젝트엔 `--strict-markers`가 켜져 있지 않아 미등록 마커를 써도 에러가 나지 않는다. 나중에 `mutating` 마커(위 "변경성 테스트 준비" 참고)를 등록하면서 `--strict-markers`를 켜게 되면, 이 훅이 만드는 마커들도 함께 예외 처리해야 한다.
+
+### Labels 정리 — feature·testClass·testMethod를 분리해서 보여주기 (2026-09-03)
+
+**문제**: TC 상세 화면의 Labels 탭에서 `feature` 값이 `"로그인 · 권한  ·  test_login.py"`처럼
+화면명과 파일명이 한 덩어리로 나와서, 코드를 모르는 사람이 보기에 뭐가 뭔지 구분이 안 됐다.
+
+**해결**: `postprocess_allure_results.py`가 pytest 실행 직후 결과 JSON을 열어 두 가지를 한다.
+1. `fullName`(예: `test_login#test_TC114_...`)을 쪼개 **`testClass`**(파일명)·**`testMethod`**(함수명)
+   라벨을 새로 추가한다
+2. **`feature`** 라벨 값에서 `" · xxx.py"` 부분을 잘라내 화면명만 남긴다(`_clean_feature_label`)
+
+그 결과 Labels 탭에 세 라벨이 겹치지 않고 각자 뜻대로 분리되어 뜬다.
+
+```
+feature:    로그인 · 권한
+testClass:  test_login.py
+testMethod: test_TC114_login_success_and_refresh_session
+```
+
+**반드시 `allure generate` 전에 후처리를 실행해야 한다** — 후처리는 결과 JSON 파일을 직접
+고치는 것이라, 이미 HTML로 생성된 리포트에는 적용되지 않는다. 순서: `pytest` → `postprocess_allure_results.py` → `allure generate`.
+
+## QA-친화적 커스텀 리포트 (부가 산출물, 2026-09-03 추가)
+
+공식 Allure 리포트(위 Labels 정리를 거친 것)가 기본 산출물이다. 그 위에, 코드를 모르는
+사람도 파일 하나만 열면 결과를 훑을 수 있도록 `tools/generate_qa_report.py`가 별도의
+자체완결 HTML(`qa-report.html`)을 추가로 만든다 — 서버 없이 더블클릭으로 바로 열린다.
+
+### 생성 순서 (공식이 먼저, 커스텀은 그 다음)
+
+PyCharm 터미널(PowerShell) 기준:
+
+```powershell
+# 1. 테스트 실행
+pytest -v --alluredir=allure-results
+
+# 2. 후처리 (Labels 정리 — 위 섹션 참고)
+python tools/postprocess_allure_results.py allure-results
+
+# 3. 공식 Allure 리포트 (기본 산출물)
+Remove-Item -Recurse -Force allure-report -ErrorAction SilentlyContinue
+allure generate allure-results --output allure-report
+allure open allure-report
+
+# 4. QA 커스텀 리포트 (추가 산출물)
+python tools/generate_qa_report.py allure-results -o qa-report.html
+```
+
+한 줄 실행 스크립트(`run_tests_and_report.bat`/`.sh`)도 이 순서(공식→커스텀)를 따른다 —
+커스텀 리포트 생성이 실패해도 공식 리포트는 이미 나와 있도록 하기 위함이다.
+
+### 두 리포트의 역할 분담
+
+| 파일 | 대상 | 특징 |
+|---|---|---|
+| `allure-report/index.html` | 기본 — 개발자·상세 진단 | 스크린샷·콘솔 로그·단계별 실행 기록, `allure open`으로 열어야 함(서버 필요) |
+| `qa-report.html` | 추가 — QA 빠른 확인 | feature/TC ID/파일명/함수명/상태/실행시간을 표로, 탭 4개(요약·화면별·상태별·전체), 더블클릭으로 바로 열림 |
+
+상세 사용법은 `docs/QA-리포트-생성-가이드.md` 참고.
+
+> **Allure 3 CLI 문법 주의**: 예전(Java 기반) Allure의 `--single-file`·`--clean` 옵션은
+> Allure 3(Node 기반)에는 없다. `allure generate <results> --output <dir>`만 쓰고, 재생성 전
+> 기존 출력 폴더는 직접 지운다 — PowerShell: `Remove-Item -Recurse -Force allure-report`,
+> bash: `rm -rf allure-report`. 생성된 `index.html`을 파일 탐색기에서 바로 더블클릭하면
+> 정상 표시가 안 되므로 **`allure open <dir>`로 열어야 한다**(로컬 서버로 서빙).
+
+### PyCharm 터미널에서 `pytest` 명령이 안 먹을 때
+
+**"인터프리터 설정"과 "터미널 활성화"는 다른 것이다.** 프로젝트 인터프리터를 `.venv`로
+지정해두는 건 한 번만 하면 유지되는 설정이지만, 그 상태가 터미널 탭마다 자동으로
+"활성화"(PATH가 `.venv/Scripts`를 가리키게 되는 것)로 이어지는지는 별개 문제다.
+PyCharm이 새 터미널 탭을 열 때 activate 스크립트를 자동 실행해주는 게 기본값이긴 하지만,
+`Settings → Tools → Terminal → "Activate virtualenv"` 옵션이나 셸 종류(cmd/PowerShell/Git Bash)에
+따라 안 될 수 있다. 즉 **"프로젝트를 한 번 설정해뒀다"가 "지금 이 터미널이 활성화 상태다"를 보장하지 않는다.**
+
+**지금 활성화 상태인지 확인하는 법**
+1. 터미널 프롬프트 맨 앞에 `(.venv)` 표시가 있는지 본다 — 없으면 비활성화 상태
+2. 더 확실하게: `python -c "import sys; print(sys.executable)"` 실행 →
+   `...\automation\.venv\Scripts\python.exe`가 찍히면 활성화, 전역 경로(`C:\Python3xx\...`)가 찍히면 비활성화
+
+증상은 `pytest: command not found`류의 오류. 확인·해결 순서:
+
+1. 위 방법으로 활성화 여부 확인
+2. **PyCharm 설정에서 인터프리터가 이 프로젝트의 `.venv`로 잡혀 있는지 확인**
+   Settings → Project → Python Interpreter
+3. **터미널에서 수동으로 activate**
+   ```powershell
+   .venv\Scripts\Activate.ps1    # PowerShell
+   ```
+   ```cmd
+   .venv\Scripts\activate.bat    :: cmd.exe
+   ```
+   PowerShell에서 "이 시스템에서 스크립트 실행이 사용하지 않도록 설정되어 있으므로..."
+   오류가 나면 실행 정책 문제다: `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`
+4. 그래도 안 되면 PyCharm 터미널 대신 **외부 터미널(PowerShell 등)에서 실행**하는 게 가장 빠른 우회다 — `run_tests_and_report.bat`도 외부 터미널에서 돌리는 걸 전제로 만들었다.
+
+> 참고: Claude Code가 명령을 실행할 때 쓰는 Bash(Git Bash) 툴은 PyCharm의 activate 설정과
+> 완전히 무관한 별도 셸이라, 거기서 `pytest: command not found`가 나는 건 위 문제와는
+> 다른 원인이다 — `.venv/Scripts/python.exe -m pytest`처럼 venv의 python을 직접 지정해 실행한다.
 
 ## 요구사항 해석 원칙
 
@@ -115,7 +258,7 @@
 2. 여러 탭/조건에 동일 검증이 필요하면 parametrize
 3. 목록 검증은 표본 페이지 + (표본 안에서) 전수 확인
 4. 컬럼/셀렉터는 위치 하드코딩 대신 텍스트 기반 탐색
-5. GIVEN/WHEN/THEN docstring + `test_TC<번호>_...` 이름
+5. GIVEN/WHEN/THEN docstring + `test_<영문 설명>` 이름 (TC ID는 함수명이 아니라 `@allure.label("testcase", ...)`에만)
 6. 화면별 세부 배경은 code-notes에, 여기(CLAUDE.md)는 건드리지 않음
 7. 이 테스트가 다른 TC의 결과나 실행 순서에 의존하지 않는가?
 8. 기대 결과가 TC/기획서/테스트 노트에 근거하고 있는가, 임의로 추측한 게 아닌가?

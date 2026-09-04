@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import time
 from typing import Generator
 
@@ -73,6 +74,29 @@ def _attach_page_evidence(page: Page, console_logs: list[str]) -> None:
             name="브라우저 콘솔 로그",
             attachment_type=allure.attachment_type.TEXT,
         )
+
+
+_TC_ID_RE = re.compile(r"^TC-(\d{6})-(\d+)")
+
+
+def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
+    """@allure.label("testcase", ...) 값에서 배포일자 기준 pytest 마커를 자동 생성한다.
+
+    TC ID(`TC-260904-001`)는 함수명이 아니라 이 데코레이터가 정본이다(CLAUDE.md 참고).
+    마커를 손으로 붙이면 데코레이터와 어긋날 수 있으므로, 여기서 파싱해 자동으로만 붙인다.
+    `TC-YYMMDD-001` 형식이 아닌 기존 TC(`TC-001` 등)는 그냥 건너뛴다.
+    """
+    for item in items:
+        for marker in item.iter_markers("allure_label"):
+            # allure.label(label_type, *labels) -> pytest.mark.allure_label(*labels, label_type=label_type)
+            # label_type은 키워드 인자로만 들어오고, TC ID는 args[0]이다.
+            if marker.kwargs.get("label_type") != "testcase" or not marker.args:
+                continue
+            match = _TC_ID_RE.match(marker.args[0])
+            if match:
+                date, seq = match.groups()
+                item.add_marker(f"tc_{date}")
+                item.add_marker(f"tc_{date}_{seq}")
 
 
 def _login_and_save(browser_type: BrowserType) -> None:

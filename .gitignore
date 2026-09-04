@@ -22,5 +22,9 @@ playwright-report/
 allure-results/
 allure-report/
 
+# QA 커스텀 리포트 및 실행 로그 (실행할 때마다 새로 생기는 산출물)
+qa-report.html
+test_run_output.log
+
 # PyCharm 프로젝트 설정
 .idea/

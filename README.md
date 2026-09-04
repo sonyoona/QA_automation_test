@@ -107,6 +107,8 @@ dev 환경에서 업체 이름만으로는 소속 파트너를 알 수 없어서
 
 같은 모달을 다루기 때문에 `test_vehicle_edit_reseller.py`의 모달 진입·필드 탐색 헬퍼를 그대로 import해서 재사용합니다.
 
+TC-059~066은 "리셀러·인수 업체 파트너 조합에 따라 업체 이관이 실제로 저장되는지/차단되는지"를 검증합니다 — TC-057/058과 달리 [수정] 저장까지 실행하는 mutating TC입니다. TC-051~058이 쓰는 차량과 겹치지 않도록 dev에 등록해둔 전용 차량 4대(`900용1001~1004`)를 쓰고, 저장에 성공하는 TC는 검증 후 원래 업체로 되돌려 반복 실행 가능하게 합니다. 자세한 내용은 `docs/notes/code-notes/차량업체변경-테스트-노트.md` 참고.
+
 <br>
 
 ## 테스트 케이스
@@ -133,28 +135,99 @@ dev 환경에서 업체 이름만으로는 소속 파트너를 알 수 없어서
 | TC-056 | 차량 수정 시 파트너가 스몰티켓인 경우 리셀러 자동선택(비활성화) 확인 | 정상 케이스 |
 | TC-057 | 업체 변경 시 파트너 값 노출 확인 | 정상 케이스 |
 | TC-058 | 업체 변경 시 리셀러 값 노출(유지) 확인 | 정상 케이스 |
+| TC-059 | 리셀러 [커넥트] 차량을 파트너 [LG U+] 업체로 이관 성공 | 정상 케이스 |
+| TC-060 | 리셀러 [커넥트] 차량을 파트너 [스몰티켓] 업체로 이관 시도 시 차단 | 부정 케이스 |
+| TC-061 | 리셀러 [LG U+] 차량을 파트너 [LG U+] 다른 업체로 이관 성공 | 정상 케이스 |
+| TC-062 | 리셀러 [LG U+] 차량을 파트너 [커넥트] 업체로 이관 시도 시 차단 | 부정 케이스 |
+| TC-063 | 리셀러 [스몰티켓] 차량을 파트너 [스몰티켓] 다른 업체로 이관 성공 | 정상 케이스 |
+| TC-064 | 리셀러 [스몰티켓] 차량을 파트너 [커넥트] 업체로 이관 시도 시 차단 | 부정 케이스 |
+| TC-065 | 업체 이관 성공 후 재진입 시 파트너·리셀러 정합성 확인 | 회귀 |
+| TC-066 | 업체 이관 차단 후 재진입해도 기존 정보 유지 확인 | 회귀 |
 
 <br>
 
-## Allure 3 리포트
+## 리포트 생성
 
-Allure 3는 pytest 실행 결과를 테스트 제목, 단계, 실패 스크린샷·콘솔 로그 등으로 정리해 주는 테스트 리포트 도구입니다.
-이 프로젝트에서는 실패한 테스트의 증적을 자동으로 첨부하며, 실행 결과는 HTML 리포트로 확인할 수 있습니다.
+**한 줄로 실행하면 공식 Allure 리포트 + QA 커스텀 리포트가 모두 생성됩니다.**
 
 ```bash
-# Python 연동 패키지 설치
-pip install allure-pytest
+# Windows
+run_tests_and_report.bat
 
-# Allure 3 CLI 설치 (Node.js/npm 필요)
-npm install -g allure
+# Mac/Linux
+bash run_tests_and_report.sh
 ```
 
-리포트를 생성하려면 테스트 실행 시 결과 폴더를 지정한 뒤 Allure를 실행합니다.
+### 1. 공식 Allure 3 리포트 (기본 산출물)
 
-```bash
-pytest -v --alluredir=allure-results --clean-alluredir
-allure generate -o allure-report allure-results
+pytest 표준 도구가 만드는 리포트로, 스크린샷·콘솔 로그·단계별 실행 기록까지 담깁니다.
+모든 리포트 생성의 출발점이라 **먼저** 만들어둡니다.
+
+PyCharm 터미널(PowerShell) 기준:
+
+```powershell
+# Allure 3 CLI 설치 (Node.js/npm 필요, 최초 1회만)
+npm install -g allure
+
+# 1. pytest 실행
+pytest -v --alluredir=allure-results
+
+# 2. Allure JSON 후처리 (한글 요약 + Labels 정리, 아래 설명 참고)
+python tools/postprocess_allure_results.py allure-results
+
+# 3. 기존 리포트 폴더 삭제 후 공식 Allure 리포트 생성
+Remove-Item -Recurse -Force allure-report -ErrorAction SilentlyContinue
+allure generate allure-results --output allure-report
+
+# 4. 리포트 열기 (로컬 서버로 서빙 — index.html을 파일로 바로 열면 정상 표시 안 됨)
 allure open allure-report
+```
+
+> bash(Mac/Linux/Git Bash)라면 3번 삭제 명령만 `rm -rf allure-report`로 바꿉니다.
+
+**생성 결과:**
+- `allure-report/index.html` ← 공식 Allure 리포트
+  - 실패 시점의 스크린샷, 콘솔 로그 확인 가능
+  - 테스트 단계별 상세 실행 기록
+  - feature별 그룹화, 필터·검색·재시도 이력 등 표준 기능 전부 사용 가능
+
+**2단계 후처리가 하는 일 — Labels 탭을 코드 안 짠 사람도 알아보게 정리:**
+후처리 없이 생성하면 TC 상세 화면의 Labels 탭에 `feature`가
+`"로그인 · 권한  ·  test_login.py"`처럼 화면명과 파일명이 한 덩어리로 나옵니다.
+`postprocess_allure_results.py`가 결과 JSON을 열어 이걸 세 라벨로 분리합니다.
+
+```
+feature:    로그인 · 권한                                    ← 화면명만
+testClass:  test_login.py                                   ← 파일명 (새로 추가)
+testMethod: test_TC114_login_success_and_refresh_session    ← 함수명 (새로 추가)
+```
+
+**순서가 중요합니다** — 후처리는 결과 JSON을 직접 고치는 것이라, `allure generate`보다
+반드시 먼저 실행해야 합니다. 이미 만든 HTML 리포트를 후처리해도 반영되지 않습니다.
+
+> Allure 3부터는 `--single-file`·`--clean` 같은 구버전(Java 기반) CLI 옵션이 사라졌다.
+> `-o`/`--output`만 있으면 되고, 재생성 전 기존 `allure-report` 폴더는 직접 지운다
+> (`Remove-Item -Recurse -Force allure-report` / bash면 `rm -rf allure-report`).
+
+### 2. QA-친화적 커스텀 리포트 (추가 산출물)
+
+공식 리포트가 개발자 관점이라 QA가 결과를 한눈에 파악하기 어려운 부분을 보완합니다.
+**feature, testClass, testMethod를 명확하게 분리**하고, 파일 하나로 끝나는(서버 불필요) 형식입니다.
+
+```powershell
+python tools/generate_qa_report.py allure-results -o qa-report.html
+```
+
+**생성 결과:**
+- `qa-report.html` ← QA가 즉시 확인할 수 있는 리포트 (더블클릭으로 바로 열림)
+  - 📊 **요약**: 성공/실패/건너뜀/오류 통계
+  - 📂 **화면/기능별**: feature를 기준으로 그룹화
+  - 📋 **상태별**: PASS/FAIL/SKIP/ERROR로 분류
+  - 📑 **전체 목록**: TC ID, 파일명, 함수명, 상태, 실행시간이 한 눈에
+
+테이블 형식으로 다음 정보를 명확하게 표시:
+```
+상태(✓/✗/⊙/⚠) | TC ID | 화면/기능 | 파일명 | 함수명 | 실행시간
 ```
 
 <br>
@@ -163,7 +236,7 @@ allure open allure-report
 
 ```bash
 # 1. 의존성 설치
-pip install pytest playwright python-dotenv
+pip install -r requirements.txt
 playwright install chromium
 
 # 2. 환경변수 설정
