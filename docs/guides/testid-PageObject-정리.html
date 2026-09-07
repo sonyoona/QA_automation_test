@@ -1,0 +1,1103 @@
+<meta charset="utf-8">
+<title>testid + Page Object 정리</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+:root{--bg:#ffffff;--ink:#1f2937;--ink-2:#334155;--muted:#64748b;
+  --rule:#e2e8f0;--rule-2:#cbd5e1;--head:#263949;--accent:#1d4ed8;
+  --inline:#be123c;--inline-bg:#f1f5f9;--soft:#f8fafc;
+  --pre-bg:#1e293b;--pre-ink:#e2e8f0;--pre-cm:#94a3b8;
+  --pre-bad:#fca5a5;--pre-good:#86efac;--pre-kw:#c4b5fd;--pre-str:#fcd34d;
+  --warn-line:#f59e0b;--warn-bg:#fffbeb;
+  --bad:#b91c1c;--bad-bg:#fef2f2;--good:#15803d;--good-bg:#f0fdf4}
+@media(prefers-color-scheme:dark){:root{
+  --bg:#0f1419;--ink:#dbe1e8;--ink-2:#b6c0cb;--muted:#8b96a3;
+  --rule:#2a323c;--rule-2:#3a444f;--head:#8aa4bd;--accent:#7aa7f0;
+  --inline:#f0899f;--inline-bg:#1a2028;--soft:#151b22;
+  --pre-bg:#161c24;--pre-ink:#d6dde5;--pre-cm:#7d8895;
+  --pre-bad:#f2a3a3;--pre-good:#8fdba6;--pre-kw:#c0b0f0;--pre-str:#e8c77a;
+  --warn-line:#b7862a;--warn-bg:#231d10;
+  --bad:#f0a0a0;--bad-bg:#2a1a1a;--good:#8fd6a5;--good-bg:#152318}}
+*{box-sizing:border-box}
+body{font-family:'Noto Sans KR','Pretendard','Malgun Gothic',-apple-system,sans-serif;
+  line-height:1.75;max-width:960px;margin:0 auto;padding:36px 24px 96px;
+  color:var(--ink);background:var(--bg);font-size:15px;-webkit-font-smoothing:antialiased}
+h1{font-size:27px;font-weight:700;border-bottom:3px solid var(--head);
+  padding-bottom:12px;margin:0 0 8px;text-wrap:balance}
+h2{font-size:21px;font-weight:700;margin:46px 0 12px;
+  border-left:5px solid var(--head);padding-left:11px;text-wrap:balance}
+h3{font-size:17px;font-weight:700;margin:30px 0 10px;color:var(--ink-2)}
+h4{font-size:15px;font-weight:700;margin:22px 0 8px;color:var(--muted)}
+p{margin:11px 0}
+ul,ol{margin:11px 0;padding-left:26px}
+li{margin:5px 0}
+li>ul,li>ol{margin:5px 0}
+code{background:var(--inline-bg);padding:2px 6px;border-radius:4px;font-size:13px;
+  font-family:'IBM Plex Mono','D2Coding',Consolas,monospace;color:var(--inline)}
+pre{background:var(--pre-bg);color:var(--pre-ink);padding:16px 18px;border-radius:9px;
+  overflow-x:auto;margin:15px 0;font-family:'IBM Plex Mono','D2Coding',Consolas,monospace;
+  font-size:13px;line-height:1.68}
+pre code{background:none;color:inherit;padding:0;font-size:inherit}
+pre .cm{color:var(--pre-cm)}
+pre .blk-bad{color:var(--pre-bad)}
+pre .blk-good{color:var(--pre-good)}
+pre .hd-bad{color:var(--pre-bad);font-weight:700}
+pre .hd-good{color:var(--pre-good);font-weight:700}
+table{border-collapse:collapse;width:100%;margin:15px 0 22px;font-size:14px}
+th,td{border:1px solid var(--rule);padding:9px 12px;text-align:left;vertical-align:top}
+th{background:var(--soft);font-weight:600;color:var(--ink-2)}
+table code{background:none;padding:0}
+blockquote{border-left:4px solid var(--warn-line);background:var(--warn-bg);
+  margin:15px 0;padding:11px 17px;border-radius:0 8px 8px 0}
+blockquote p{margin:5px 0}
+blockquote.intro{border-left-color:var(--accent);background:var(--soft)}
+blockquote table{margin:9px 0}
+h2 .num,h3 .num{color:var(--accent);font-family:'IBM Plex Mono',monospace;
+  font-size:.86em;margin-right:9px;font-weight:600}
+hr{border:0;border-top:1px solid var(--rule);margin:34px 0}
+.toc{background:var(--soft);border:1px solid var(--rule);border-radius:9px;
+  padding:16px 22px;margin:22px 0 34px}
+.toc b{display:block;margin-bottom:8px;color:var(--ink-2)}
+.toc a{color:var(--accent);text-decoration:none}
+.toc a:hover{text-decoration:underline}
+.toc ul{margin:4px 0;padding-left:20px;font-size:13.5px}
+.toc li{margin:3px 0}
+strong{font-weight:700;color:var(--ink)}
+a{color:var(--accent)}
+@media print{body{max-width:none;padding:16px}
+  h2{page-break-after:avoid}pre,table{page-break-inside:avoid}.toc{display:none}}
+</style>
+
+<h1>testid + Page Object 정리</h1>
+
+<blockquote class="intro">
+<p><strong>2026-09-07</strong> · 차량관리 &gt; 현장 서비스 화면을 자동화하면서 정리한 내용.
+HTML 태그·CSS로 요소를 잡던 방식에서 <code>data-testid</code>로 넘어가며 알게 된 것들과,
+그 testid를 어디에 둘 것인가(Page Object)에 대한 결론을 담았다.</p>
+</blockquote>
+
+<div class="toc">
+<b>목차</b>
+<ul>
+<li><a href="#s1">1. testid란 무엇인가</a></li>
+<li><a href="#s2">2. testid의 장점 — 우리 코드에서 실제로 아픈 곳</a></li>
+<li><a href="#s3">3. testid의 단점 — 정답이 아닌 이유</a></li>
+<li><a href="#s4">4. testid 말고 다른 방법들</a></li>
+<li><a href="#s5">5. 우리 화면 실측 결과</a></li>
+<li><a href="#s6">6. Page Object — 처음부터 풀어서</a></li>
+<li><a href="#s7">7. 테스트에 testid가 안 보이는 게 왜 좋은가</a></li>
+<li><a href="#s8">8. '요령'이란 무엇인가</a></li>
+<li><a href="#s9">9. 실제로 만든 것</a></li>
+<li><a href="#s10">10. 다음 할 일</a></li>
+<li><a href="#s11">11. 위양성 — 통과하는데 검증 안 하는 테스트</a></li>
+<li><a href="#s12">12. 넷을 어떻게 조합할 것인가</a></li>
+<li><a href="#s13">13. 이 규칙들은 어디에 살고 있나</a></li>
+</ul>
+</div>
+
+<hr>
+
+<h2 id="s1"><span class="num">1</span>testid란 무엇인가</h2>
+
+<p>프론트엔드가 HTML에 붙여두는 <strong>"자동화 전용 이름표"</strong>다. 화면에는 보이지 않고,
+스타일이나 동작에도 영향을 주지 않는다. 오직 테스트가 요소를 찾기 위해서만 존재한다.</p>
+
+<pre><code>&lt;button data-testid="fs-filter__search-btn"&gt;조회&lt;/button&gt;</code></pre>
+
+<pre><code><span class="cm"># Playwright 는 이 속성을 전용 함수로 찾는다</span>
+page.get_by_test_id("fs-filter__search-btn").click()</code></pre>
+
+<blockquote>
+<p><strong>QA가 혼자 도입할 수 없다.</strong> <code>data-testid</code>는 제품 코드(HTML)에 있어야 하므로,
+프론트엔드 개발팀이 붙여야 한다. 없는 화면이라면 요청하는 것부터가 첫 단계다.</p>
+</blockquote>
+
+<h3>지금 화면에 있는지 확인하는 법</h3>
+
+<p>브라우저 개발자도구 → Console 에서:</p>
+
+<pre><code>document.querySelectorAll('[data-testid], [data-qa], [data-test]').length</code></pre>
+
+<p>0이 아니면 이미 붙어 있다. 목록까지 보려면:</p>
+
+<pre><code>console.table([...document.querySelectorAll('[data-testid]')]
+  .map(e =&gt; ({tag: e.tagName, testid: e.getAttribute('data-testid')})))</code></pre>
+
+<blockquote>
+<p>콘솔에 붙여넣기가 막혀 있으면 <code>allow pasting</code> 이라고 <strong>직접 타이핑</strong>하고
+Enter를 치면 그 뒤로 풀린다.</p>
+</blockquote>
+
+<hr>
+
+<h2 id="s2"><span class="num">2</span>testid의 장점 — 우리 코드에서 실제로 아픈 곳</h2>
+
+<h3>① 같은 이름 버튼이 여러 개인 문제가 사라진다</h3>
+
+<p><code>test_vehicle_company_transfer.py</code>의 세 곳이 전부 같은 코드다.</p>
+
+<pre><code><span class="hd-bad">나쁨</span> <span class="cm">— 확인 / 완료 / 실패 알럿의 OK 를 코드가 구분하지 못한다</span>
+<span class="blk-bad">ok_button = page.get_by_role("button", name="OK", exact=True)</span>
+
+<span class="hd-good">좋음</span> <span class="cm">— 무엇의 OK 인지가 이름에 있다</span>
+<span class="blk-good">page.get_by_test_id("transfer-confirm__ok").click()
+page.get_by_test_id("transfer-complete__ok").click()</span></code></pre>
+
+<p>다이얼로그가 겹쳐 뜨는 순간 엉뚱한 걸 누르거나 <code>strict mode violation</code> 에러가 난다.
+"가끔 깨지는 테스트"의 전형적인 원인이다.</p>
+
+<h3>② 구조·클래스 의존이 없어진다</h3>
+
+<table>
+<thead><tr><th>지금 쓰는 셀렉터</th><th>깨지는 조건</th></tr></thead>
+<tbody>
+<tr><td><code>page.locator("div.column", has_text="리셀러")</code></td><td>레이아웃 클래스명을 바꾸면</td></tr>
+<tr><td><code>page.locator(".spinner")</code></td><td>로딩 컴포넌트 교체</td></tr>
+<tr><td><code>pagination.locator('a[type="pageItem"].active')</code></td><td>페이지네이션 라이브러리 교체</td></tr>
+<tr><td><code>page.locator('button[id="2"]')</code></td><td><strong>이미 위험</strong> — <code>id="2"</code>는 의미 없는 값이라 순서만 바뀌어도 다른 버튼</td></tr>
+</tbody>
+</table>
+
+<h3>③ 텍스트 변경에 안 흔들린다</h3>
+
+<p><code>"조회"</code>가 <code>"검색"</code>으로 바뀌거나, 다국어가 붙거나, <code>"완료 217"</code>처럼
+건수가 붙으면 텍스트 기반 셀렉터는 전부 깨진다. testid는 그대로다.</p>
+
+<h3>④ 실패 메시지가 읽힌다</h3>
+
+<pre><code><span class="blk-bad">Timeout … locator("div.column").locator("input, [role=combobox]").first</span>
+<span class="blk-good">Timeout … locator("[data-testid=fs-filter__reseller-select]")</span></code></pre>
+
+<hr>
+
+<h2 id="s3"><span class="num">3</span>testid의 단점 — 정답이 아닌 이유</h2>
+
+<table>
+<thead><tr><th>단점</th><th>내용</th></tr></thead>
+<tbody>
+<tr><td><strong>접근성을 검증하지 않는다</strong></td><td><code>get_by_role("button", name="로그인")</code>은 "스크린리더가 이걸 버튼으로 인식하는가"까지 검증한다. testid는 <code>&lt;div&gt;</code>에 붙여도 통과 — 접근성이 깨져도 초록불</td></tr>
+<tr><td><strong>사용자가 보는 것과 다르다</strong></td><td>사용자는 testid를 볼 수 없다. "화면에 '저장' 버튼이 있다"가 TC 의도인데 testid로 잡으면 버튼 글자가 <code>undefined</code>여도 통과</td></tr>
+<tr><td><strong>제품 코드가 지저분해진다</strong></td><td>개발팀 저항 포인트 — "테스트용 속성을 프로덕션 번들에 넣어야 하냐"</td></tr>
+<tr><td><strong>관리 부담이 FE로 넘어간다</strong></td><td>컴포넌트 리팩터링하며 testid를 지우면 조용히 깨진다</td></tr>
+</tbody>
+</table>
+
+<h3>그래서 이렇게 나눈다</h3>
+
+<pre><code><span class="cm">사용자가 읽는 것 (버튼 글자, 라벨, 에러 메시지)  →  get_by_role / get_by_text
+사용자가 못 보는 구조 (다이얼로그, 행, 스피너)   →  get_by_test_id
+그것도 안 되면                                  →  CSS / XPath (최후 수단)</span></code></pre>
+
+<p>Playwright 공식 권장 순서도 role/label이 먼저, testid는 그게 안 될 때다.</p>
+
+<hr>
+
+<h2 id="s4"><span class="num">4</span>testid 말고 다른 방법들</h2>
+
+<h3>① 회사가 다른 속성명을 쓰면 Playwright 쪽을 맞춘다</h3>
+
+<p><code>get_by_test_id()</code>는 <strong><code>data-testid</code>라는 이름만</strong> 찾도록 기본 설정돼 있다.
+회사가 <code>data-qa</code>·<code>data-cy</code>를 쓴다면, 제품 코드를 바꾸라고 요구할 게 아니라
+<strong>Playwright에 알려주면 된다.</strong></p>
+
+<pre><code><span class="cm"># conftest.py — 이 한 줄이면 회사 속성명을 그대로 쓴다</span>
+playwright.selectors.set_test_id_attribute("data-qa")
+
+<span class="cm"># 이제 이게 [data-qa="save-button"] 을 찾는다</span>
+page.get_by_test_id("save-button")</code></pre>
+
+<h3>② testid 대신 <code>aria-label</code> 추가를 요청한다</h3>
+
+<p><strong>접근성이 개선되는 지점</strong> — 스크린리더는 HTML을 읽어서 음성으로 말해준다.
+아이콘만 있는 버튼은 읽을 텍스트가 없어서 <strong>"버튼"</strong> 이라고만 말한다.</p>
+
+<pre><code><span class="blk-bad">&lt;button class="btn-icon"&gt;&lt;svg&gt;...&lt;/svg&gt;&lt;/button&gt;</span>            <span class="cm">→ "버튼"</span>
+<span class="blk-good">&lt;button class="btn-icon" aria-label="차량 삭제"&gt;&lt;svg&gt;...&lt;/svg&gt;&lt;/button&gt;</span>  <span class="cm">→ "차량 삭제, 버튼"</span></code></pre>
+
+<p><code>data-testid</code>는 스크린리더가 <strong>아예 무시하는 속성</strong>이라, 아무리 붙여도
+시각장애인에게는 여전히 "버튼"이다.</p>
+
+<p><strong>자동화 쪽 이득</strong> — 코드 모양은 그대로 <code>get_by_role</code>인데,
+이름이 달라져서 <strong>구분이 된다.</strong></p>
+
+<p><strong>요청이 통하는 난이도가 다르다</strong>는 게 실무적 이유다.</p>
+
+<table>
+<thead><tr><th>요청</th><th>개발자 반응</th></tr></thead>
+<tbody>
+<tr><td>"테스트용 <code>data-testid</code> 붙여주세요"</td><td>"그거 프로덕션 코드에 왜 넣어요?" → 설득 필요</td></tr>
+<tr><td>"아이콘 버튼에 <code>aria-label</code>이 없어 접근성 검사에 걸립니다"</td><td>원래 지켜야 할 것 → 반박 여지 없음</td></tr>
+</tbody>
+</table>
+
+<h3>③ 행 식별에는 PK가 담긴 속성을 요청한다</h3>
+
+<p>텍스트로 행을 찾으면 세 가지가 깨진다.</p>
+
+<ul>
+<li><strong>부분 일치</strong> — <code>"12가3456"</code>으로 찾는데 <code>"112가34567"</code> 행도 걸린다</li>
+<li><strong>다른 컬럼에 같은 문자열</strong> — 비고란에 그 번호가 적혀 있어도 걸린다</li>
+<li><strong>텍스트가 완전히 같은 행</strong> — 같은 날 같은 업체 건이면 글자까지 같을 수 있다</li>
+</ul>
+
+<pre><code><span class="hd-good">요청 결과</span>
+&lt;tr data-testid="fs-table__row--10679"&gt;  <span class="cm">← DB 의 PK 가 들어간다</span></code></pre>
+
+<pre><code><span class="cm"># 표시되는 글자가 아니라 데이터의 신원으로 행을 잡는다</span>
+row = page.get_by_test_id(f"fs-table__row--{vehicle_id}")</code></pre>
+
+<h3>④ 네트워크 / API 레벨 검증을 곁들인다</h3>
+
+<p>브라우저가 화면을 그리는 순서는 이렇다.</p>
+
+<pre><code>[조회] 클릭
+   ↓
+브라우저 → 서버 요청        GET /api/monitor?reseller=커넥트
+   ↓
+서버 → JSON 응답            { "total": 217, "items": [ … ] }
+   ↓
+브라우저가 그 JSON 으로 표를 그림   <span class="cm">← 지금은 여기만 본다</span></code></pre>
+
+<p>Playwright는 <strong>중간의 JSON을 가로채서 볼 수 있다.</strong></p>
+
+<pre><code>with page.expect_response(lambda r: "/api/monitor" in r.url) as res_info:
+    page.get_by_role("button", name="조회").click()
+
+data = res_info.value.json()
+
+<span class="cm"># ① 서버가 말하는 총 건수와 대조</span>
+assert data["total"] == expected_total
+
+<span class="cm"># ② 서버 응답 자체가 조건에 맞는지 (화면 그리기 전 단계)</span>
+wrong = [x for x in data["items"] if x["reseller"] != "커넥트"]
+assert not wrong, f"[FAIL] 서버 응답에 다른 리셀러가 섞임: {wrong}"</code></pre>
+
+<h4>왜 필요한가 — 지금 TC-086이 반쪽이다</h4>
+
+<table>
+<thead><tr><th>방향</th><th>지금</th><th>안 보면 생기는 일</th></tr></thead>
+<tbody>
+<tr><td>결과 ⊆ 조건 (오검출)</td><td>✅ 보고 있음</td><td>—</td></tr>
+<tr><td><strong>조건 ⊆ 결과 (누락)</strong></td><td>❌ <strong>못 봄</strong></td><td>커넥트 차량이 500대인데 필터가 3대만 보여줘도 통과</td></tr>
+</tbody>
+</table>
+
+<p>뒷방향을 보려면 <strong>"원래 몇 대인지"라는 정답</strong>이 필요한데, 화면만 봐서는 알 수 없다.
+API가 그 정답을 준다.</p>
+
+<h4>추가로 얻는 것 — 버그의 소재가 갈린다</h4>
+
+<table>
+<thead><tr><th>API 응답</th><th>화면</th><th>진단</th></tr></thead>
+<tbody>
+<tr><td>커넥트만 217건</td><td>커넥트만 217건</td><td>정상</td></tr>
+<tr><td>커넥트만 217건</td><td>다른 리셀러 섞임</td><td><strong>프론트 버그</strong> — 서버는 잘 줬는데 잘못 그림</td></tr>
+<tr><td>다른 리셀러 섞임</td><td>다른 리셀러 섞임</td><td><strong>백엔드 버그</strong> — 필터 쿼리가 잘못됨</td></tr>
+</tbody>
+</table>
+
+<blockquote>
+<p>API 검증은 화면 검증을 <strong>대체하는 게 아니라 보완</strong>한다. API만 보면
+"서버는 잘 줬는데 화면이 안 그려짐"을 놓친다.</p>
+</blockquote>
+
+<hr>
+
+<h2 id="s5"><span class="num">5</span>우리 화면 실측 결과</h2>
+
+<p>차량관리 &gt; 현장 서비스 화면에서 측정한 결과 <strong>목록 40개 + 팝업 19개 = 59개</strong>가
+이미 붙어 있었다. 요청할 게 없는 수준이다.</p>
+
+<table>
+<thead><tr><th>점검 항목</th><th>결과</th></tr></thead>
+<tbody>
+<tr><td>화면 구분이 있나</td><td>✅ <code>fs-</code>(현장서비스) + 영역(<code>filter</code>, <code>table</code>, <code>status-tabs</code>, <code>new</code>)</td></tr>
+<tr><td><strong>행에 PK가 있나</strong></td><td>✅ <code>fs-table__row--10679</code> — 나중에 추가하기 제일 어려운 것이 이미 있음</td></tr>
+<tr><td>의미가 담겼나</td><td>✅ <code>plate-input</code>, <code>search-btn</code> — 이름만 보고 뭔지 알 수 있음</td></tr>
+</tbody>
+</table>
+
+<h3>영역별 구성</h3>
+
+<pre><code><span class="cm">--- 목록 화면 (40) ---</span>
+fs-page__root                      <span class="cm">화면 전체</span>
+fs-dashboard__root                 fs-dashboard__excel-download-btn
+fs-status-tabs__root               fs-status-tabs__tabs
+fs-status-tabs__new-service-btn    <span class="cm">신규 서비스 신청 버튼</span>
+
+fs-filter__reseller-select         fs-filter__company-select
+fs-filter__service-type-select     fs-filter__plate-input
+fs-filter__device-sn-input         fs-filter__assignee-input
+fs-filter__requester-input         fs-filter__completed-from-date
+fs-filter__completed-to-date       fs-filter__search-btn
+fs-filter__gps-shadow-checkbox     fs-filter__temp-only-checkbox
+fs-filter__completed-only-checkbox
+
+fs-table__root
+fs-table__row--10679               fs-table__action-btn--10679      <span class="cm">← PK 짝, 10행 반복</span>
+
+<span class="cm">--- 신규 서비스 신청 팝업 (19) ---</span>
+fs-new__dialog                     fs-new__close-button
+fs-new__svc-type-select            fs-new__work-date-field
+fs-new__digital-key-select         fs-new__ignition-lock-select
+fs-new__address-input              fs-new__address-search-button
+fs-new__contact-input              fs-new__installer-walk-in-checkbox
+fs-new__assignee-trigger           fs-new__memo-textarea
+fs-new__temp-reg-checkbox          fs-new__company-select
+fs-new__branch-select              fs-new__vehicle-select
+fs-new__add-to-list-button         fs-new__cancel-button
+fs-new__submit-button              <span class="cm">← ★ 절대 클릭 금지</span></code></pre>
+
+<blockquote>
+<p><strong>★ <code>fs-new__submit-button</code>([신청 완료])은 누르지 않는다</strong> —
+dev에 실제 서비스 신청 건이 생성된다. "어차피 유효성 검사에서 막히겠지" 하고 눌렀다가
+안 막혀서 진짜 데이터가 생긴 사례가 있다. 팝업 검증은 <strong>필드가 있는지 /
+버튼이 활성화됐는지</strong>까지만 한다.</p>
+<p><code>fs-new__add-to-list-button</code>(목록에 추가)은 팝업 안에서만 일어나는 일이라 안전하다.</p>
+</blockquote>
+
+<h3>팝업은 열어야 측정된다</h3>
+
+<p>HTML은 팝업이 열릴 때 만들어진다. 처음 측정에서 팝업 testid가 하나도 안 나온 건
+"안 붙어 있다"가 아니라 <strong>"팝업이 안 열려 있어서 DOM에 없다"</strong>였다.
+버튼을 눌러 띄운 뒤 다시 측정해야 한다.</p>
+
+<hr>
+
+<h2 id="s6"><span class="num">6</span>Page Object — 처음부터 풀어서</h2>
+
+<p>testid를 찾았다면 다음 질문은 <strong>"그 문자열을 어디에 적을 것인가"</strong>다.</p>
+
+<h3>0단계 — 아무것도 안 나눈 상태</h3>
+
+<pre><code><span class="blk-bad">def test_a(page):
+    page.get_by_test_id("fs-filter__plate-input").fill("12가3456")
+    page.get_by_test_id("fs-filter__search-btn").click()
+
+def test_b(page):
+    page.get_by_test_id("fs-filter__plate-input").fill("99너9999")
+    page.get_by_test_id("fs-filter__search-btn").click()
+
+<span class="cm"># … 이하 28개 더, 전부 같은 두 줄로 시작</span></span></code></pre>
+
+<p>흔히 "이름 바뀌면 30곳 고쳐야 하잖아"라고 하는데, <strong>그건 사실 약한 이유다</strong> —
+찾아 바꾸기 한 번이면 된다. 진짜 문제는 아래 7장에 있다.</p>
+
+<h3>1단계 — 함수로 빼기 (이미 하고 있는 것)</h3>
+
+<p><code>test_monitor_reseller_filter.py</code>의 <code>_goto_monitor</code>·<code>_open_reseller_dropdown</code>·
+<code>_get_real_row_count</code>가 바로 이 단계다. <strong>Page Object의 8할은 이미 하고 있다.</strong></p>
+
+<pre><code>def _search_by_plate(page, plate):
+    page.get_by_test_id("fs-filter__plate-input").fill(plate)
+    page.get_by_test_id("fs-filter__search-btn").click()</code></pre>
+
+<p>나중에 스피너 대기를 추가해야 하면 <strong>함수 안에 한 줄만</strong> 넣으면 30개 TC에 전부 적용된다.</p>
+
+<h3>2단계 — Page Object</h3>
+
+<p>함수가 늘어나면 한 파일 안에 <strong>"화면 조작법"과 "무엇을 검증하는가"가 섞인다.</strong>
+Page Object는 <strong>그 함수들을 화면별로 다른 파일에 모아두는 것</strong>이다. 그게 전부다.</p>
+
+<pre><code>pages/
+  field_service_page.py       <span class="cm">현장서비스 화면 조작법만</span>
+test_field_service.py         <span class="cm">검증만</span></code></pre>
+
+<h4>왜 <code>class</code>를 쓰나 — <code>page</code>를 매번 넘기기 귀찮아서다</h4>
+
+<pre><code><span class="cm"># 함수 방식 — page 를 계속 들고 다녀야 함</span>
+_search_by_plate(page, "12가3456")
+_get_row_count(page)
+
+<span class="cm"># 클래스 방식 — 한 번만 넘기면 나머지가 기억함</span>
+fs = FieldServicePage(page)
+fs.search_by_plate("12가3456")
+fs.row_ids()</code></pre>
+
+<p><code>class</code>는 <strong>"관련된 함수들 + 공통으로 쓰는 값(<code>page</code>)을 한 묶음으로 담은 상자"</strong>
+정도로 보면 된다.</p>
+
+<h3>언제 만들지 않는가</h3>
+
+<table>
+<thead><tr><th>상황</th><th>판단</th></tr></thead>
+<tbody>
+<tr><td>TC 한두 개짜리 화면</td><td>안 만듦. 테스트 안에 그냥 씀</td></tr>
+<tr><td>같은 조작이 3번 넘게 반복</td><td>함수로 뺌 (1단계)</td></tr>
+<tr><td>헬퍼가 5개 넘고 다른 파일도 그 화면을 씀</td><td>Page Object로 옮김 (2단계)</td></tr>
+</tbody>
+</table>
+
+<blockquote>
+<p><strong>미리 만들지 않는다.</strong> 어떻게 쓰일지 모르는 상태에서 묶으면 잘못된 단위로 묶이고,
+나중에 푸는 게 더 어렵다. 기존 <code>test_monitor_reseller_filter.py</code>·
+<code>test_vehicle_company_transfer.py</code>는 잘 돌아가고 있으므로 굳이 뜯어고치지 않는다.</p>
+</blockquote>
+
+<hr>
+
+<h2 id="s7"><span class="num">7</span>테스트에 testid가 안 보이는 게 왜 좋은가</h2>
+
+<p><strong>"testid가 안 보이는 것" 자체는 목적이 아니라 결과다.</strong> 진짜 이유는 셋이고, 세기가 다르다.</p>
+
+<h3>① 제일 센 이유 — 조작 방법이 TC마다 갈리는 걸 막는다</h3>
+
+<p>검색 버튼을 눌러도 결과 테이블은 <strong>즉시 갱신되지 않는다.</strong> 서버 응답을 기다려야 한다.
+그런데 testid를 테스트마다 직접 쓰면 이렇게 갈린다.</p>
+
+<pre><code><span class="hd-bad">TC-A</span> <span class="cm">— 검색하고 바로 읽음</span>
+<span class="blk-bad">    page.get_by_test_id("fs-filter__search-btn").click()
+    rows = page.locator('[data-testid^="fs-table__row--"]')
+    assert rows.count() &gt; 0        <span class="cm"># ← 아직 이전 검색 결과가 남아 있는 상태를 읽음</span></span>
+
+<span class="hd-good">TC-B</span> <span class="cm">— 다른 날 다른 사람이 씀. 대기를 넣었다</span>
+<span class="blk-good">    page.get_by_test_id("fs-filter__search-btn").click()
+    expect(page.get_by_test_id("fs-table__root")).to_be_visible()
+    rows = page.locator('[data-testid^="fs-table__row--"]')
+    assert rows.count() &gt; 0</span></code></pre>
+
+<p><strong>TC-A가 위험하다.</strong> 검색이 아예 동작하지 않아 이전 결과가 남아 있어도
+<code>rows.count() &gt; 0</code>이라 <strong>통과한다.</strong> 검증을 안 하면서 초록불인 상태 — 위양성이다.
+그런데 코드만 봐서는 안 보인다. TC-A도 TC-B도 각각은 멀쩡해 보인다.</p>
+
+<pre><code><span class="cm"># Page Object — 검색은 이 방법 하나뿐. 고를 여지가 없다</span>
+    def search(self) -&gt; None:
+        self.search_button.click()
+        self.wait_loaded()</code></pre>
+
+<p><strong>"TC마다 다르게 짤 수 있는 여지" 자체를 없애는 것</strong>이 핵심이다.</p>
+
+<h3>② 위험한 조작을 아예 못 하게 만든다</h3>
+
+<p><code>submit_button</code>은 있지만 <strong><code>submit()</code> 메서드는 일부러 안 만들었다.</strong></p>
+
+<pre><code><span class="blk-bad">page.get_by_test_id("fs-new__submit-button").click()   <span class="cm"># dev 에 실제 데이터 생성</span></span>
+<span class="blk-good">popup.submit()                                         <span class="cm"># AttributeError — 그런 메서드가 없다</span></span></code></pre>
+
+<p>완벽한 차단은 아니다(<code>popup.submit_button.click()</code>으로 우회는 된다).
+다만 <strong>무심코 codegen 복붙하다 눌러버리는</strong> 사고는 막힌다.</p>
+
+<h3>③ 제일 약한 이유 — 이름이 바뀌어도 한 곳만 고친다</h3>
+
+<p>흔히 첫 번째로 드는 이유인데 실은 제일 약하다. 다만 <strong>지금은 시범 배포라 이름이 바뀔
+가능성이 높고</strong>, 30곳 중 1곳을 놓치면 그 하나만 조용히 깨진다.</p>
+
+<hr>
+
+<h2 id="s8"><span class="num">8</span>'요령'이란 무엇인가</h2>
+
+<blockquote class="intro">
+<p><strong>그냥 하면 되는 조작</strong>과 <strong>알고 해야 되는 조작</strong>의 차이.
+요령은 <strong>화면을 직접 겪어봐야 알 수 있는, 코드만 봐서는 안 보이는 처리</strong>다.</p>
+</blockquote>
+
+<p>헬퍼로 뺄지 말지의 판단 기준 중 <strong>제일 위에 있는 항목</strong>이 이것이다.
+반복 횟수보다 위다 — 반복을 줄이려는 게 아니라 <strong>알아낸 것을 잃어버리지 않으려는 것</strong>이기 때문이다.</p>
+
+<h3>요령이 없는 조작</h3>
+
+<pre><code>page.get_by_test_id("fs-filter__plate-input").fill("12가3456")</code></pre>
+
+<p>입력칸에 글자를 넣는다. 끝. 열 명이 짜면 열 명이 똑같이 쓴다. <strong>몰라서 틀릴 여지가 없다.</strong></p>
+
+<h3>요령이 있는 조작 — 우리 코드의 실제 예시 셋</h3>
+
+<h4>① <code>_read_settled</code> (test_vehicle_company_transfer.py)</h4>
+
+<pre><code>def _read_settled(field_text: Locator) -&gt; str:
+    expect(field_text).not_to_have_text("선택", timeout=10_000)
+    return field_text.inner_text()</code></pre>
+
+<p>주석에 이유가 적혀 있다 — 모달이 열린 직후엔 값이 비동기로 채워지는 도중이라
+곧바로 읽으면 <strong>플레이스홀더("선택")를 실제 값으로 착각한다.</strong>
+TC-065/066에서 실제로 겪어보고서야 알게 된 것이다.</p>
+
+<h4>② <code>_get_real_row_count</code> (test_monitor_reseller_filter.py)</h4>
+
+<pre><code>rows = page.locator("table").first.locator("tbody tr")
+count = rows.count()
+if count == 1 and rows.first.locator("td").first.get_attribute("colspan"):
+    return 0</code></pre>
+
+<p><strong>"조회 결과가 없습니다"라는 안내 문구도 <code>&lt;tr&gt;</code> 하나로 그려진다.</strong>
+그냥 세면 0건인데 1건으로 나오고, <code>rows.count() &gt; 0</code>은 무조건 통과한다.</p>
+
+<h4>③ <code>_go_to_page</code> (test_monitor_reseller_filter.py)</h4>
+
+<table>
+<thead><tr><th>요령</th><th>없으면</th></tr></thead>
+<tbody>
+<tr><td>직접 링크가 있으면 그걸, 없으면 [다음] 반복 클릭</td><td>5페이지 링크가 안 보이면 못 감</td></tr>
+<tr><td>클릭 후 스피너 사라질 때까지 대기</td><td>이전 페이지 데이터를 읽음</td></tr>
+<tr><td>무한루프 방지 안전장치</td><td>이동이 막히면 영원히 돔</td></tr>
+<tr><td>도착 확인 <code>assert</code></td><td>이동이 조용히 실패해도 모르고 지나감</td></tr>
+</tbody>
+</table>
+
+<h3>왜 반드시 빼야 하나</h3>
+
+<p><strong>요령을 모르는 사람이 다시 짜면, 요령 없이 짠다.</strong>
+그리고 그건 에러가 아니라 <strong>위양성</strong>으로 나타난다.</p>
+
+<pre><code><span class="hd-good">요령을 아는 사람</span>
+<span class="blk-good">count = _get_real_row_count(page)
+assert count &gt; 0</span>
+
+<span class="hd-bad">요령을 모르는 사람 — 문법도 맞고 잘 돌아간다. 근데 틀렸다</span>
+<span class="blk-bad">count = page.locator("tbody tr").count()
+assert count &gt; 0        <span class="cm"># "조회 결과가 없습니다" 한 줄도 1로 세서 무조건 통과</span></span></code></pre>
+
+<p><strong>둘 다 초록불이다.</strong> 리뷰에서도 잘 안 보인다.
+헬퍼로 빼두면 그런 코드를 쓸 이유 자체가 없어진다.</p>
+
+<h3>요령인지 알아보는 신호</h3>
+
+<table>
+<thead><tr><th>신호</th><th>예</th></tr></thead>
+<tbody>
+<tr><td><strong>"왜 이렇게 했지?" 주석을 쓰게 된다</strong></td><td><code>_read_settled</code>의 주석 5줄</td></tr>
+<tr><td><strong>한 번 깨진 뒤에 추가한 코드다</strong></td><td>TC-065/066 실패 후 생김</td></tr>
+<tr><td><code>if</code> / <code>try</code> / 반복이 붙는다</td><td>colspan 판정, 무한루프 방지</td></tr>
+<tr><td>대기가 필요하다</td><td>스피너, 값 안정화</td></tr>
+<tr><td>"이렇게 안 하면 가끔 틀린다"</td><td>대부분 여기 해당</td></tr>
+</tbody>
+</table>
+
+<h3>헬퍼로 뺄지 판단하는 표</h3>
+
+<table>
+<thead><tr><th>질문</th><th>답이 예면</th></tr></thead>
+<tbody>
+<tr><td><strong>이 조작에 대기·재시도 같은 '요령'이 붙나</strong></td><td>반드시 뺀다 ← 제일 중요</td></tr>
+<tr><td>3번 넘게 반복되나</td><td>뺀다</td></tr>
+<tr><td>여러 동작이 모여 이름 붙일 수 있는 한 단계가 되나</td><td>뺀다</td></tr>
+<tr><td>그냥 요소 하나를 한 번 쓰는 건가</td><td>빼지 마라</td></tr>
+</tbody>
+</table>
+
+<hr>
+
+<h2 id="s9"><span class="num">9</span>실제로 만든 것</h2>
+
+<h3>파일 구성</h3>
+
+<pre><code>pages/
+  __init__.py
+  field_service_page.py     <span class="cm">FieldServicePage + NewServicePopup — testid 가 적히는 유일한 곳</span>
+test_field_service.py       <span class="cm">읽기 전용 화면 확인 TC 5개 — testid 가 한 번도 안 나온다</span></code></pre>
+
+<h3>화면 진입 (GNB: 차량관리 &gt; 현장 서비스)</h3>
+
+<pre><code>    @allure.step("차량관리 &gt; 현장 서비스 진입")
+    def goto(self) -&gt; None:
+        self.page.goto(STAFF_URL)
+        <span class="cm"># 하위에도 이름이 비슷한 항목이 있어서 ^…$ 로 정확히 고정한다</span>
+        self.page.locator("a").filter(has_text=re.compile(r"^차량관리$")).click()
+        self.page.get_by_role("link", name="현장 서비스").click()
+        self.wait_loaded()</code></pre>
+
+<h3>작성한 TC</h3>
+
+<table>
+<thead><tr><th>TC ID</th><th>내용</th><th>검증 방식</th></tr></thead>
+<tbody>
+<tr><td>TC-260907-001</td><td>화면 진입 시 주요 영역 노출</td><td>상태 탭 · 신규 신청 버튼 · 테이블 · 엑셀 버튼</td></tr>
+<tr><td>TC-260907-002</td><td>조회 필터 13개 항목 노출</td><td>빠진 항목을 <strong>전부 모아서</strong> 이름으로 보고</td></tr>
+<tr><td>TC-260907-003</td><td>결과 행마다 상세 버튼이 짝으로 있음</td><td><strong>PK 기반</strong> 전수 확인 + 0건이면 실패</td></tr>
+<tr><td>TC-260907-004</td><td>신규 신청 팝업 입력 항목 15개 노출</td><td>값 입력·제출 없이 노출만 확인</td></tr>
+<tr><td>TC-260907-005</td><td>팝업 하단 버튼 노출 + 닫기 복귀</td><td>[신청 완료]는 <strong>노출만</strong> 확인, 클릭 안 함</td></tr>
+</tbody>
+</table>
+
+<h3>위양성을 피하려고 넣은 장치</h3>
+
+<pre><code><span class="cm"># ① 0건이면 통과가 아니라 실패 — 하한을 건다</span>
+row_ids = fs.row_ids()
+assert row_ids, "[FAIL] 조회된 행이 0건입니다 - 목록이 실제로 비었는지, 로딩이 실패한 건지 확인 필요"
+
+<span class="cm"># ② PK 로 짝을 맞춘다 — 표시 텍스트가 같아도 구분된다</span>
+missing = [row_id for row_id in row_ids if fs.row_action_button(row_id).count() == 0]
+assert not missing, f"[FAIL] 상세 버튼이 없는 행(PK): {missing} / 전체 {len(row_ids)}행"</code></pre>
+
+<pre><code><span class="cm"># ③ is_visible() 은 재시도를 안 한다 — 첫 항목만 expect 로 기다려 렌더 완료를
+#    확인한 뒤 나머지를 훑는다. 안 그러면 아직 안 그려진 화면을 읽고 전부 "없음" 이 된다</span>
+first_label, first_attr = fields[0]
+expect(getattr(owner, first_attr)).to_be_visible()
+return [label for label, attr in fields if not getattr(owner, attr).is_visible()]</code></pre>
+
+<hr>
+
+<h2 id="s10"><span class="num">10</span>다음 할 일</h2>
+
+<ol>
+<li><strong>TC 5개를 실제로 돌려본다</strong> — 화면 진입 경로와 렌더 타이밍을 확인</li>
+<li><strong>돌리면서 나오는 '요령'을 Page Object에 쌓는다</strong> — 스피너, 값 안정화 등.
+지금 파일은 그걸 담을 그릇을 만들어둔 상태에 가깝다</li>
+<li><strong>테이블 컬럼 구성을 실측</strong>한 뒤 검색·필터 TC를 추가한다
+(컬럼 testid가 없어 헤더 텍스트 기반 인덱스 탐색이 필요)</li>
+<li><strong><code>docs/notes/code-notes/현장서비스-테스트-노트.md</code> 작성</strong> (CLAUDE.md 규칙)</li>
+<li>팝업에 1건 담아 <code>fs-new__request-list-row--*</code> testid 실측</li>
+<li>testid가 없어 CSS로 잡은 곳은 <code>TODO(testid):</code> 로 표시해 FE 요청 근거로 축적</li>
+<li><strong><code>aria-label</code> 실측</strong> — 이 화면에 있는지 아직 모른다 (12-6의 콘솔 명령 참고)</li>
+</ol>
+
+<h3>실행 명령 (PyCharm 터미널 / PowerShell)</h3>
+
+<pre><code>pytest test_field_service.py -v
+pytest -m tc_260907 -v          <span class="cm"># 이 배포분만</span>
+pytest -m tc_260907_003 -v      <span class="cm"># TC 하나만</span></code></pre>
+
+<hr>
+
+<h2 id="s11"><span class="num">11</span>위양성 — 통과하는데 검증 안 하는 테스트</h2>
+
+<blockquote class="intro">
+<p>앞의 10개 장은 <strong>"요소를 어떻게 잡을 것인가"</strong>였다. 이 장은 층이 다르다 —
+testid로 잡든 Page Object로 묶든, <strong>검증 자체가 헛돌면 아무 소용이 없다.</strong>
+셀렉터 전략은 이 문제를 하나도 막아주지 않는다.</p>
+</blockquote>
+
+<h3><span class="num">11-1</span>실패보다 나쁜 이유</h3>
+
+<p><strong>실패하는 테스트는 고치면 된다. 검증 안 하면서 통과하는 테스트는 "여긴 확인됐다"는
+잘못된 안심을 준다.</strong></p>
+
+<p>더 나쁜 건 <strong>통과율로는 영원히 안 보인다</strong>는 점이다. 리포트가 초록불이니 아무도
+열어보지 않는다. 원인은 거의 항상 하나다 — <strong>검증이 까다로울 때 조건을 느슨하게 만들어
+초록불을 만든 것.</strong> 통과율이 목표가 되면 반드시 이렇게 된다.</p>
+
+<blockquote>
+<p><strong>TC를 쓴 뒤 반드시 자문한다</strong><br>
+"이 검증 대상이 <strong>망가졌다고 가정하면</strong>, 이 테스트가 빨간불이 되나?"</p>
+<p>답이 "아니오"면 그 TC는 없는 것만 못하다.</p>
+</blockquote>
+
+<h3><span class="num">11-2</span>실제로 걸리는 9가지 형태</h3>
+
+<table>
+<thead><tr><th>#</th><th>형태</th><th>나쁜 코드</th><th>왜 통과하나</th></tr></thead>
+<tbody>
+<tr><td>①</td><td>부분 문자열</td><td><code>assert "완료" in status</code></td><td><code>"배정완료"</code>·<code>"운영완료"</code>도 참</td></tr>
+<tr><td>②</td><td>하한 없음</td><td><code>assert after &lt; before</code></td><td><code>after == 0</code>이어도 참 — 필터가 죽어도 통과</td></tr>
+<tr><td>③</td><td>빈 값 건너뛰기</td><td><code>if not v: continue</code></td><td>값이 비었다는 게 <strong>버그의 증거</strong>인데 그걸 버림</td></tr>
+<tr><td>④</td><td>항진명제</td><td><code>assert x == sorted(x)</code></td><td>원소가 전부 같으면 오름·내림 둘 다 참</td></tr>
+<tr><td>⑤</td><td>자기충족</td><td><code>find(조건="A")</code> 후 <code>assert "A" in txt</code></td><td>있는 것만 골라와서 있는지 확인</td></tr>
+<tr><td>⑥</td><td>빈 문자열</td><td><code>assert name in title</code></td><td><code>name == ""</code>이면 항상 참</td></tr>
+<tr><td>⑦</td><td>라벨만 확인</td><td><code>to_contain_text("현재 로그인 계정")</code></td><td>화면에 <strong>항상 박힌 안내 문구</strong>라 값이 비어도 참</td></tr>
+<tr><td>⑧</td><td>수집만 하고 안 봄</td><td><code>found = ...</code> 후 <code>print(len(found))</code></td><td><code>assert</code>가 아예 없다</td></tr>
+<tr><td>⑨</td><td><strong>0회 루프</strong></td><td><code>for r in rows: assert ...</code></td><td>행이 0개면 <strong>검증이 통째로 사라짐</strong></td></tr>
+</tbody>
+</table>
+
+<h4>고치는 법 — before / after</h4>
+
+<pre><code><span class="cm"># ① 부분 문자열</span>
+<span class="blk-bad">- assert "완료" in status</span>
+<span class="blk-good">+ assert status == "완료", f"[FAIL] '완료' 아닌 상태가 섞임: {status!r}"</span>
+
+<span class="cm"># ② 하한 없음 — 필터가 죽어 0건이 나와도 "잘 좁혀졌다"며 통과</span>
+<span class="blk-bad">- assert after &lt; before</span>
+<span class="blk-good">+ assert 0 &lt; after &lt; before, f"[FAIL] 결과 이상: {before}건 -&gt; {after}건 (0건이면 회귀 의심)"</span>
+
+<span class="cm"># ③ 빈 값 건너뛰기 — 그 빈 값이 곧 '필터 미적용'의 증거다</span>
+<span class="blk-bad">- if not completed:
+-     continue</span>
+<span class="blk-good">+ if not completed:
++     blanks.append(i); continue
++ assert not blanks, f"[FAIL] 완료일 빈 행 {blanks} - 필터 미반영 의심"</span>
+
+<span class="cm"># ④ 항진명제 — 값이 전부 같으면 어떤 정렬이든 참</span>
+<span class="blk-good">+ if len(set(before)) &lt; 2:
++     pytest.skip(f"값이 모두 동일({before[:1]}) - 순서 검증 불가")</span>
+  assert before == sorted(before, reverse=True)
+
+<span class="cm"># ⑨ 0회 루프</span>
+  rows = ...
+<span class="blk-good">+ assert rows, "[FAIL] 검사할 행이 0건 - 검증이 수행되지 않았다"</span>
+  for r in rows: ...</code></pre>
+
+<h3><span class="num">11-3</span>★ 부정 검증은 방향이 반대다 — 제일 위험하다</h3>
+
+<p><strong>"없어야 한다"를 확인할 때는, 덜 읽을수록 통과한다.</strong></p>
+
+<pre><code><span class="cm"># 긍정 검증 — 덜 읽으면 실패한다. 금방 드러남</span>
+assert "커넥트" in options
+
+<span class="cm"># 부정 검증 — 덜 읽으면 통과한다. 영원히 안 드러남</span>
+<span class="blk-bad">assert "LG U+" not in options       # options 가 [] 여도 통과</span></code></pre>
+
+<p>목록이 채워지기 전에 읽으면 <strong>기능이 완전히 망가져도 초록불</strong>이다.
+긍정 검증이면 덜 읽었을 때 실패해서 금방 드러나는데, 부정 검증은 그 반대라
+회귀가 나도 통과율에 아무 흔적이 남지 않는다.</p>
+
+<blockquote>
+<p><strong>규칙 — 목록으로 "없어야 한다"를 볼 때는 둘을 같이 건다</strong><br>
+① 목록이 <strong>안정된 뒤</strong> 읽는다 &nbsp;·&nbsp; ② 목록이 <strong>비면 실패</strong>로 본다.<br>
+②가 없으면 하한이 사라져 위 ②번(하한 없음)과 같은 구멍이 된다.</p>
+</blockquote>
+
+<pre><code><span class="blk-good">opts = _settled_options(page, timeout_ms=8000)
+assert opts, "[FAIL] 옵션을 읽지 못했다 - 제외 여부를 판정할 수 없다"
+assert not [p for p in active if any(p in o for o in opts)]</span></code></pre>
+
+<h3><span class="num">11-4</span>구조적 원칙 4개</h3>
+
+<h4>① assert를 쓰기 전에 "정답을 어디서 가져올지"부터 정한다</h4>
+
+<p>정답 출처가 없으면 쓸 수 있는 검증은 <code>assert x</code>(비어 있지 않다) 정도뿐이고,
+<strong>그건 거의 항상 통과한다.</strong></p>
+
+<pre><code><span class="hd-bad">나쁨</span> <span class="cm">— 정답이 없으니 '비어 있지 않다' 밖에 못 쓴다</span>
+<span class="blk-bad">assert filled and filled != "업체를 선택하세요"</span>
+
+<span class="hd-good">좋음</span> <span class="cm">— 표에서 정답을 읽어두고 일치를 본다</span>
+<span class="blk-good">plate, owner = _row_pair(page, "차량번호", "업체명")
+...
+assert filled == owner, f"[FAIL] 차량 {plate!r} 소속은 {owner!r} 인데 {filled!r} 로 채워짐"</span></code></pre>
+
+<p>정답 출처는 대개 화면 안에 있다 — 표 컬럼 짝, 다른 탭의 같은 데이터, 목록 요약 vs 상세.
+그것도 없으면 <strong>API 응답</strong>이다.</p>
+
+<h4>② 필터·검색은 양방향을 본다</h4>
+
+<table>
+<thead><tr><th>방향</th><th>무엇을 막나</th><th>안 걸면</th></tr></thead>
+<tbody>
+<tr><td>결과 ⊆ 조건</td><td><strong>오검출</strong> — 조건에 안 맞는 게 섞임</td><td>필터가 전부 반환해도 통과</td></tr>
+<tr><td>조건 ⊆ 결과</td><td><strong>누락</strong> — 맞는데 빠짐</td><td>필터가 <strong>아무것도 안 넣어도</strong> 통과</td></tr>
+</tbody>
+</table>
+
+<p><strong>확인할 수 없는 방향은 못 했다고 docstring에 적는다.</strong>
+안 적으면 다음 사람이 "이미 다 봤네" 하고 넘어간다.</p>
+
+<h4>③ 검증 대상을 탐색 조건에 넣지 않는다</h4>
+
+<pre><code><span class="hd-bad">나쁨</span> <span class="cm">— '검증 결과가 있는 건'만 골라와서 '있는가'를 확인 = 실패 불가능</span>
+<span class="blk-bad">dlg, txt = _find(..., require_substring="검증 결과")
+assert "검증 결과" in txt</span>
+
+<span class="hd-good">좋음</span> <span class="cm">— 탐색은 전제(상태·유형)까지만, 검증은 본문 assert 로</span>
+<span class="blk-good">dlg, txt = _find(page, "인스톨러 앱 (APP)", svc_type="설치")
+assert "검증 결과" in txt, f"[FAIL] ... 팝업 앞부분: {txt[:300]!r}"</span></code></pre>
+
+<p>탐색 조건에 넣으면 회귀가 났을 때 <strong>"못 찾음 → skip"</strong>으로 노란불에 묻힌다.</p>
+
+<h4>④ skip은 초록불이 아니다</h4>
+
+<ul>
+<li><strong>skip은 "데이터가 없다"일 때만.</strong> "구조가 깨졌다"는 fail이어야 한다</li>
+<li><strong>필터 결과가 0건인 것은 skip 대상이 아니다</strong> — <code>assert filtered &gt; 0</code>으로 실패시킨다</li>
+<li><strong>"없다"고 단정하기 전에 볼 수 있는 만큼 본다</strong> — 1페이지 10행만 보고 포기하지 않는다</li>
+<li><strong>환경 장애가 skip으로 위장한다</strong> — 세션이 끊겨도 "데이터 없음"처럼 보인다</li>
+</ul>
+
+<h3><span class="num">11-5</span>우리 코드 점검 결과 — 3건</h3>
+
+<p>코드를 읽고 찾은 것이다(실행해서 재현한 건 아니다). 셋 다 <strong>이 문서를 쓰면서 고쳤다.</strong></p>
+
+<h4>🔴 <code>_assert_all_rows_have_reseller</code> — 0회 루프 (형태 ⑨)</h4>
+
+<p>TC-086은 <strong>1페이지에서만</strong> <code>assert filtered_row_count &gt; 0</code>을 건다. 그 뒤
+중간·마지막 표본 페이지로 이동하는데, 그 페이지에서 행이 0개로 오면 루프가 0회 돌아
+<strong>조용히 통과</strong>한다.</p>
+
+<pre><code>  rows = page.locator("table").first.locator("tbody tr")
+<span class="blk-bad">- row_count = rows.count()</span>
+<span class="blk-good">+ row_count = _get_real_row_count(page)
++ assert row_count &gt; 0, (
++     f"[FAIL] 검사할 데이터 행이 0건입니다 - 이 페이지에서는 리셀러 전수 검증이 "
++     f"수행되지 않았습니다 (기대 리셀러: {target_reseller!r})"
++ )</span>
+  for i in range(row_count):</code></pre>
+
+<h4>🟡 <code>test_TC085</code> — 한 방향만 봤다 (원칙 ②)</h4>
+
+<p>"기대 항목이 다 있나"(조건 ⊆ 결과)만 확인하고 있었다. 드롭다운에
+<strong>제거되어야 할 옛 파트너가 남아 있어도</strong> 통과한다.</p>
+
+<pre><code><span class="cm"># 방향 ①  조건 ⊆ 결과 — 기대 항목이 빠지지 않았는가 (원래 있던 것)</span>
+for option in RESELLER_OPTIONS:
+    expect(reseller_dropdown.get_by_role("option", name=option, exact=True)).to_be_visible()
+
+<span class="blk-good">+ # 방향 ②  결과 ⊆ 조건 — 기대 목록에 없는 항목이 섞이지 않았는가
++ actual_options = [t.strip() for t in reseller_dropdown.get_by_role("option").all_inner_texts()]
++ assert actual_options, "[FAIL] 리셀러 옵션을 하나도 읽지 못했습니다 - 목록이 비면 '섞인 게 없다'고 판정할 수 없습니다"
++
++ unexpected = [o for o in actual_options if o not in RESELLER_OPTIONS]
++ assert not unexpected, f"[FAIL] 기대 목록에 없는 리셀러가 노출됩니다: {unexpected} / 전체: {actual_options}"</span></code></pre>
+
+<p>여기서 <strong>순서가 중요하다.</strong> 방향 ②는 <code>all_inner_texts()</code> — 재시도가 없는
+즉시 읽기라, 그것만 있으면 11-3의 함정에 그대로 빠진다. 방향 ①의 <code>expect()</code> 루프가
+<strong>목록이 다 그려진 것을 보장하는 대기 역할</strong>을 겸하고, <code>assert actual_options</code>가
+하한을 건다.</p>
+
+<h4>🟡 같은 것을 읽는 방법이 두 가지였다</h4>
+
+<p><code>_get_real_row_count()</code>가 "조회 결과가 없습니다" 안내 행(colspan)을 걸러주는데,
+<code>_assert_all_rows_have_reseller</code>는 <code>rows.count()</code>로 <strong>직접</strong> 세고 있었다.
+셀렉터 이름은 멀쩡했다 — 깨진 건 <strong>"이 표의 행을 어떻게 세야 하는가"라는 지식이 한 곳에
+없었다</strong>는 점이다. 위 수정으로 함께 정리됐다.</p>
+
+<blockquote>
+<p>6장에서 Page Object의 이유로 "이름 바뀌면 한 곳만 고친다"를 들었는데,
+<strong>진짜 이유는 이쪽이다</strong> — 읽는 방법이 한 곳에 없으면 TC마다 다른 방법을 골라 쓰게 되고,
+그중 하나가 위양성이 되어도 <strong>이름은 멀쩡해서 아무도 눈치채지 못한다.</strong></p>
+</blockquote>
+
+<h4>✅ 잘 되어 있던 곳 — 참고용</h4>
+
+<p><code>test_TC087</code>은 부정 검증인데 <strong>안전하다.</strong></p>
+
+<pre><code>header_texts = page.locator("table").first.locator("thead th").all_inner_texts()
+
+<span class="blk-good">assert "리셀러" in header_texts, ...      # ← 이 긍정 assert 가 하한 역할을 한다</span>
+assert "파트너" not in header_texts, ...  <span class="cm"># ← 헤더를 못 읽으면 위에서 이미 실패</span></code></pre>
+
+<p><strong>부정 검증 앞에 긍정 검증을 두는 것</strong> — 이게 하한을 거는 가장 간단한 방법이다.
+<code>test_TC084</code>도 같은 구조(리셀러 보임 확인 → 파트너 안 보임 확인)라 안전하다.</p>
+
+<h3><span class="num">11-6</span>체크리스트 — TC 쓴 뒤 8가지</h3>
+
+<ol>
+<li><strong>망가졌다고 가정하면 빨간불이 되나?</strong></li>
+<li><code>in</code> / <code>&lt;</code>을 썼다면 — 하한이 있나? (<code>0 &lt; after &lt; before</code>)</li>
+<li>루프를 돌린다면 — <strong>0회 돌 수 있나?</strong></li>
+<li>부정 검증("없다")이라면 — <strong>안정된 뒤 읽고, 비면 실패</strong>로 보나?</li>
+<li>정답 출처가 있나, 아니면 "비어 있지 않다"만 확인하고 있나?</li>
+<li>필터·검색이라면 — <strong>양방향</strong>을 다 봤나?</li>
+<li>검증할 것을 탐색 조건에 넣지 않았나?</li>
+<li><code>skip</code>이 "검증 불가"인가, "결과 0건"을 감추고 있나?</li>
+</ol>
+
+<h3><span class="num">11-7</span>자가 점검은 뚫린다</h3>
+
+<p><strong>이 체크리스트를 쓴 사람이 스스로 하면 못 잡는다.</strong> 자기가 그렇게 쓴 이유를
+알고 있으니 다시 봐도 같은 결론이 나온다.</p>
+
+<ul>
+<li>코드를 안 쓴 사람에게 리뷰를 부탁하거나</li>
+<li>서브에이전트에게 <strong>"이 파일에서 통과하는데 검증 안 하는 곳을 찾아라"</strong>라고 시키거나</li>
+<li>최소한 <strong>하루 지나서</strong> 다시 본다</li>
+</ul>
+
+<p><strong>매번 skip되는 TC를 찾는 검사</strong>를 도구로 두는 것도 방법이다 —
+매번 skip된다는 건 <strong>그 검증이 한 번도 안 돌았다</strong>는 뜻이고, 그 뒤에 진짜 버그가 숨는다.</p>
+
+<hr>
+
+<h2 id="s12"><span class="num">12</span>넷을 어떻게 조합할 것인가</h2>
+
+<blockquote class="intro">
+<p>4장에서 testid · aria-label · PK 속성 · API를 하나씩 봤고, 6장에서 Page Object를 봤다.
+그럼 <strong>실제로는 뭘 골라야 하나?</strong> 이 장은 그 질문에 답한다 —
+<strong>이상적인 답과 실무의 답이 다르고, 그 차이에 이유가 있다.</strong></p>
+</blockquote>
+
+<h3><span class="num">12-1</span>먼저 — 넷은 서로 대체재가 아니다</h3>
+
+<p>"testid를 쓸까 Page Object를 쓸까"는 <strong>질문 자체가 성립하지 않는다.</strong>
+층이 다르기 때문이다.</p>
+
+<table>
+<thead><tr><th>기법</th><th>무엇을 푸는가</th><th>사는 곳</th></tr></thead>
+<tbody>
+<tr><td><code>aria-label</code></td><td>요소에 <strong>의미 있는 이름</strong>을 준다</td><td>화면 (HTML)</td></tr>
+<tr><td><code>data-testid</code></td><td>요소에 <strong>안 바뀌는 이름표</strong>를 준다</td><td>화면 (HTML)</td></tr>
+<tr><td>PK 속성</td><td><strong>어느 데이터인지</strong> 구분한다</td><td>화면 (HTML)</td></tr>
+<tr><td><strong>Page Object</strong></td><td>그 이름들을 <strong>어디에 적을지</strong> 정한다</td><td><strong>우리 코드</strong></td></tr>
+</tbody>
+</table>
+
+<p>앞의 셋은 <strong>"무엇으로 잡는가"</strong>, Page Object는 <strong>"어디에 적는가"</strong>다.
+그래서 Page Object는 나머지 셋 중 무엇을 쓰든 <strong>항상 같이 쓴다.</strong>
+고르는 게 아니라 겹쳐 쌓는 것이다.</p>
+
+<h3><span class="num">12-2</span>이상적인 조합</h3>
+
+<ol>
+<li><strong>사람이 보는 이름으로 잡을 수 있으면 그것부터</strong> —
+<code>get_by_role("button", name="차량 삭제")</code>. 아이콘 버튼에 이름을 주는 게 <code>aria-label</code>이다</li>
+<li><strong>그걸로 구분이 안 되면 testid</strong> — 같은 이름이 여럿이거나, 이름이 자주 바뀌는 자리</li>
+<li><strong>행·데이터 식별은 PK</strong> — 표시 텍스트로는 같은 건을 구분할 수 없다</li>
+<li><strong>전부 Page Object 안에</strong> — 테스트 본문에는 셀렉터가 안 나온다</li>
+<li><strong>정답 출처가 화면에 없으면 API</strong> — 누락 방향(조건 ⊆ 결과)은 대개 여기서만 확인된다</li>
+</ol>
+
+<h4>왜 "사람이 보는 이름"이 1순위인가</h4>
+
+<p>testid로 잡으면 <strong>테스트가 사용자와 다른 것을 본다.</strong>
+testid는 화면에 보이지 않는 속성이라, <strong>라벨이 통째로 사라져도 testid만 남아 있으면 통과한다.</strong></p>
+
+<pre><code><span class="cm"># 버튼 글자가 "" 로 비어도, 아이콘이 안 그려져도 통과한다</span>
+<span class="blk-bad">page.get_by_test_id("fs-filter__search-btn").click()</span>
+
+<span class="cm"># 사람이 읽는 이름이 사라지면 실패한다 — 사용자가 겪는 것과 같은 것을 본다</span>
+<span class="blk-good">page.get_by_role("button", name="조회").click()</span></code></pre>
+
+<blockquote>
+<p>이게 11장(위양성)과 이어진다. <strong>testid만으로 잡는 화면은 "보이는 것"에 대한 검증이
+저절로 약해진다.</strong> 그래서 노출 검증 TC에서는 <code>expect(...).to_be_visible()</code>처럼
+<strong>보이는가</strong>를 따로 확인해야 한다 — testid로 찾았다는 사실 자체는 아무것도 보장하지 않는다.</p>
+</blockquote>
+
+<h3><span class="num">12-3</span>현실 — 넷 중 셋은 우리가 통제할 수 없다</h3>
+
+<table>
+<thead><tr><th>기법</th><th>누가 만드나</th><th>QA가 할 수 있는 것</th></tr></thead>
+<tbody>
+<tr><td><code>aria-label</code></td><td>프론트엔드</td><td>❌ 요청만</td></tr>
+<tr><td><code>data-testid</code></td><td>프론트엔드</td><td>❌ 요청만 (지금은 시범 몇 페이지뿐)</td></tr>
+<tr><td>PK 속성</td><td>프론트엔드</td><td>❌ 요청만</td></tr>
+<tr><td><strong>Page Object</strong></td><td><strong>QA</strong></td><td>✅ <strong>전적으로 우리 것</strong></td></tr>
+</tbody>
+</table>
+
+<p><strong>이상적인 모델에서 1순위였던 것들이, 실무에서는 우리 손에 없다.</strong>
+요청해도 다음 스프린트로 밀리고, 밀리는 동안에도 자동화는 굴러가야 한다.
+그래서 <strong>투자 우선순위가 뒤집힌다.</strong></p>
+
+<h3><span class="num">12-4</span>실무의 답 — 순서가 이렇게 바뀐다</h3>
+
+<h4>① Page Object부터 만든다 (유일하게 우리 것이므로)</h4>
+
+<p>흔히 드는 이유는 "이름 바뀌면 한 곳만 고친다"인데, <strong>진짜 이유는 따로 있다.</strong>
+지금 CSS로 잡아둔 곳이 나중에 testid로 바뀔 때, Page Object가 있으면
+<strong>고칠 곳이 한 파일</strong>이다. 없으면 27곳을 찾아 바꾸다가 한 곳을 놓친다.</p>
+
+<pre><code><span class="cm"># 지금 — testid 가 없어서 CSS 로 잡는다</span>
+<span class="blk-bad">@property
+def spinner(self): return self.page.locator(".spinner")</span>
+
+<span class="cm"># 나중에 FE 가 붙여주면 이 한 줄만 바뀐다. 테스트 파일은 손 안 댄다</span>
+<span class="blk-good">@property
+def spinner(self): return self.page.get_by_test_id("fs-page__spinner")</span></code></pre>
+
+<p><strong>Page Object는 testid가 있어서 쓰는 게 아니라, testid가 없을 때 더 필요하다.</strong></p>
+
+<h4>② 있는 화면은 testid로, 없는 화면은 role/label → CSS 순으로</h4>
+
+<table>
+<thead><tr><th>상황</th><th>쓰는 것</th></tr></thead>
+<tbody>
+<tr><td>testid가 붙어 있다</td><td>testid — 이미 있으면 공짜다</td></tr>
+<tr><td>testid는 없고 사람이 읽는 이름은 있다</td><td><code>get_by_role</code> / <code>get_by_label</code></td></tr>
+<tr><td>둘 다 없다</td><td>CSS — 단, <strong><code>TODO(testid):</code> 주석과 함께</strong></td></tr>
+</tbody>
+</table>
+
+<h4>③ 그 TODO 목록이 FE 요청의 근거가 된다</h4>
+
+<p>요청이 통하고 안 통하고는 <strong>말하는 방식</strong>에서 갈린다.</p>
+
+<table>
+<thead><tr><th>이렇게 말하면</th><th>이렇게 들린다</th></tr></thead>
+<tbody>
+<tr><td>"testid 좀 붙여주세요"</td><td>"테스트용 속성을 왜 프로덕션 코드에?" → 설득 필요</td></tr>
+<tr><td>"이 <strong>27곳</strong>이 CSS로 잡혀 있어서 화면이 바뀔 때마다 깨집니다"</td><td>구체적 비용 → 우선순위 매길 근거가 생김</td></tr>
+</tbody>
+</table>
+
+<h4>④ aria-label은 자동화가 아니라 접근성 이슈로 올린다</h4>
+
+<p>같은 요청인데 <strong>명분이 다르면 결과가 다르다.</strong> 자동화 편의로 요청하면
+"우리 우선순위 아님"으로 밀리고, 접근성으로 올리면 <strong>원래 지켰어야 할 것</strong>이라 반박 여지가 없다
+(4장 ② 참고). 그리고 통과하면 자동화도 같이 좋아진다.</p>
+
+<h3><span class="num">12-5</span>우리 화면들의 실제 답</h3>
+
+<table>
+<thead><tr><th>화면</th><th>상황</th><th>답</th></tr></thead>
+<tbody>
+<tr><td>차량관리 &gt; 현장 서비스</td><td>testid 59개 + PK 짝까지 완비</td><td>testid + Page Object로 끝. <strong>FE 요청 불필요</strong></td></tr>
+<tr><td>단말기 &gt; 모니터</td><td>testid 0개 — <code>div.column</code>, <code>.spinner</code>, <code>a[type="pageItem"]</code></td><td>role/텍스트 우선 + CSS는 <code>TODO(testid):</code>로 축적</td></tr>
+</tbody>
+</table>
+
+<p>현장 서비스는 <strong>예외적으로 좋은 케이스</strong>다. 시범 배포라서 잘 붙어 있는 것이지,
+회사 전체에 이런 컨벤션이 있는 게 아니다 — 다른 화면은 정반대다.
+<strong>이 화면 기준으로 "우리는 testid를 쓴다"고 일반화하면 안 된다.</strong></p>
+
+<h3><span class="num">12-6</span>aria-label — 이 화면에 있는지 <strong>아직 모른다</strong></h3>
+
+<p>정직하게 적어둔다. testid는 <strong>59개를 직접 세어봤지만</strong>,
+<code>aria-label</code>은 <strong>한 번도 세어보지 않았다.</strong>
+"요즘 프레임워크면 있겠지"는 추측이지 측정이 아니다.</p>
+
+<blockquote>
+<p><strong>관찰과 증명은 다르다.</strong> 확인하지 않은 것은 "있을 것이다"라고 적지 않고,
+<strong>모른다고 적는다.</strong> 안 그러면 다음 사람이 이 문장을 근거로 판단한다.</p>
+</blockquote>
+
+<h4>확인하는 법 (DevTools 콘솔)</h4>
+
+<pre><code><span class="cm">// ① 전체 개수 — testid 59개와 비교해볼 수 있다</span>
+document.querySelectorAll('[aria-label]').length
+
+<span class="cm">// ② 진짜 궁금한 것 — 글자 없는 버튼에 이름이 붙어 있나</span>
+console.table([...document.querySelectorAll('button')]
+  .filter(b =&gt; !b.innerText.trim())
+  .map(b =&gt; ({ aria: b.getAttribute('aria-label'), html: b.outerHTML.slice(0, 70) })))</code></pre>
+
+<p>②에서 <code>aria</code>가 <code>null</code>인 줄들이 나오면, <strong>그게 그대로 FE 요청 목록</strong>이다 —
+"접근성 검사에 걸리는 아이콘 버튼 N개"라는 형태로 올릴 수 있다.</p>
+
+<hr>
+
+<h2 id="s13"><span class="num">13</span>이 규칙들은 어디에 살고 있나</h2>
+
+<p><strong>문서는 읽히지 않으면 없는 것과 같다.</strong> 이 문서는 사람이 한 번 읽는 것이고,
+매번 지켜져야 하는 규칙은 다른 자리에 있어야 한다.</p>
+
+<table>
+<thead><tr><th>자리</th><th>담는 것</th><th>언제 읽히나</th></tr></thead>
+<tbody>
+<tr><td><code>CLAUDE.md</code></td><td>매번 <strong>지켜야 하는 규칙</strong></td><td><strong>세션마다 자동 로드</strong></td></tr>
+<tr><td><strong>이 문서</strong></td><td><strong>왜 그런 규칙인지</strong> — 배경·비교·실측</td><td>사람이 필요할 때</td></tr>
+<tr><td><code>docs/notes/code-notes/</code></td><td>화면별 배경·의사결정</td><td>그 화면을 만질 때</td></tr>
+</tbody>
+</table>
+
+<h3>11장(위양성)은 <code>CLAUDE.md</code>에 옮겨 적었다</h3>
+
+<p>이 문서의 11장은 <strong>왜</strong>를 설명하고, <code>CLAUDE.md</code>에는 <strong>무엇을 지킬지</strong>만 넣었다.</p>
+
+<pre><code>CLAUDE.md
+  ## 위양성 — 통과하는데 검증 안 하는 테스트   <span class="cm">← 새 장 (검증 범위 다음)</span>
+       자주 걸리는 형태 (9가지 표)
+       부정 검증은 방향이 반대다
+       assert 전에 "정답을 어디서 가져올지"부터 정한다
+       검증 대상을 탐색 조건에 넣지 않는다
+       같은 것을 읽는 방법은 하나여야 한다
+       자가 점검은 뚫린다
+
+  ## 새 TC 설계 시 체크리스트
+       12. 망가졌다고 가정하면 빨간불이 되나?              <span class="cm">← 추가</span>
+       13. 루프가 0회 돌 수 있나 — 하한이 있는가?           <span class="cm">← 추가</span>
+       14. 부정 검증이면 안정된 뒤 읽고, 비면 실패로 보는가?  <span class="cm">← 추가</span></code></pre>
+
+<h3>★ 사수님 규칙 문서는 이 저장소를 따라가지 않는다</h3>
+
+<p>상위 폴더에 훨씬 상세한 규칙 문서(<code>C:\Users\a1mob\Downloads\CLAUDE.md</code>)가 있고,
+지금 세션에서도 같이 로드된다. 그런데 확인해보니 —</p>
+
+<pre><code>$ cd C:/Users/a1mob/Downloads &amp;&amp; git rev-parse --show-toplevel
+<span class="blk-bad">fatal: not a git repository</span></code></pre>
+
+<p><strong>그 파일은 어느 git 저장소에도 들어 있지 않다.</strong> 지금 읽히는 건 순전히
+그 폴더가 이 프로젝트의 상위 폴더라서다. <strong>저장소를 옮기거나 클론하는 순간 통째로 사라진다.</strong>
+지금 그 규칙들이 살아 있는 건 우연이다 — 그래서 우리 <code>CLAUDE.md</code>로 옮겨 적었다.</p>
+
+<h3>그대로 복사하지는 않았다</h3>
+
+<p>그쪽 문서는 <code>TC-A-138</code>, <code>_opts_fast</code>, <code>_settled_options</code> 같은
+<strong>그 저장소의 실측 근거</strong>로 채워져 있다. 그대로 옮기면
+<strong>여기 존재하지 않는 함수·TC를 가리키는 규칙</strong>이 된다.
+그래서 형태(9가지 목록·부정 검증·정답 출처)만 가져오고,
+근거는 <strong>우리 코드에서 실제로 찾은 3건</strong>으로 바꿔 적었다.</p>
+
+<blockquote>
+<p>그 문서가 스스로 경고하는 말이기도 하다 — <strong>"틀린 문서는 없는 것보다 나쁘다."</strong>
+규칙 문서가 틀리면 <strong>그 문서로 하는 점검이 통째로 샌다.</strong></p>
+</blockquote>
