@@ -35,36 +35,50 @@ def _auth_state_is_fresh(path: str) -> bool:
 
 @pytest.hookimpl(wrapper=True, tryfirst=True)
 def pytest_runtest_makereport(item, call):
-    """테스트 본문이 실패하면 그 자리에서 화면·콘솔 로그를 Allure 리포트에 첨부한다.
+    """테스트가 실패하면 그 자리에서 화면·콘솔 로그를 Allure 리포트에 첨부한다.
 
     **왜 fixture teardown이 아니라 여기인가** — teardown에서 `allure.attach`를 부르면
     그 첨부는 fixture의 컨테이너에 붙어서 리포트의 "Tear down" 안쪽에 숨는다.
-    테스트 본문이 실패한 이 시점(아직 테스트가 열려 있는 동안)에 붙여야
-    테스트의 **Attachments 탭**에 바로 보인다.
+    실패한 이 시점(아직 테스트가 열려 있는 동안)에 붙여야 증거가 그 테스트에 남는다.
 
     이 시점엔 fixture teardown이 아직 안 돌았으므로 page도 살아있다.
+
+    **setup 단계도 함께 보는 이유** — fixture 안에서 화면 진입이 실패하면 pytest 는
+    ERROR(Allure 는 broken)로 끝내는데, `when == "call"` 만 보면 그 경우엔 증거가
+    하나도 안 남는다. 2026-09-07 에 현장 서비스 5건이 진입 단계에서 전부 깨졌을 때
+    리포트에 스크린샷이 없어서 브라우저를 따로 띄워 메뉴를 확인해야 했다.
+
+    setup 실패 때 `logged_in_page` 가 아직 안 만들어졌으면(로그인 자체가 실패한 경우)
+    붙일 화면이 없으므로 조용히 넘어간다.
     """
     rep = yield
-    if rep.when == "call" and rep.failed:
-        page = item.funcargs.get("logged_in_page")
+    if rep.when in ("setup", "call") and rep.failed:
+        # `item.funcargs` 가 아니라 fixture 가 달아둔 값을 쓴다 - funcargs 에는 테스트 함수가
+        # 직접 요청한 fixture 만 올라와서, `logged_in_page` 를 다른 fixture(`fs` 등)가
+        # 대신 받는 구조에서는 None 이 나온다 (2026-09-07 실측).
+        page = getattr(item, "_page", None)
         if page is not None:
-            _attach_page_evidence(page, getattr(item, "_console_logs", []))
+            _attach_page_evidence(page, getattr(item, "_console_logs", []), rep.when)
     return rep
 
 
-def _attach_page_evidence(page: Page, console_logs: list[str]) -> None:
+def _attach_page_evidence(page: Page, console_logs: list[str], when: str = "call") -> None:
     """실패 시점의 화면 스크린샷·주소와 브라우저 콘솔 로그를 Allure 리포트에 첨부한다.
+
+    첨부 이름에 단계를 적는 이유 — setup 실패는 "검증하다 틀린 것" 이 아니라
+    "검증까지 가지도 못한 것" 이라, 스크린샷을 보는 사람이 그 차이를 알아야 한다.
 
     첨부 자체가 실패해도(이미 닫힌 페이지 등) 테스트 결과를 덮어쓰면 안 되므로
     예외는 삼키고 넘어간다 — 여기서 에러가 나면 정작 원래 실패 원인이 가려진다.
     """
+    label = "사전조건(setup) 실패 시점" if when == "setup" else "실패 시점"
     try:
         allure.attach(
             page.screenshot(full_page=True),
-            name="실패 시점 화면",
+            name=f"{label} 화면",
             attachment_type=allure.attachment_type.PNG,
         )
-        allure.attach(page.url, name="실패 시점 주소", attachment_type=allure.attachment_type.TEXT)
+        allure.attach(page.url, name=f"{label} 주소", attachment_type=allure.attachment_type.TEXT)
     except Exception:
         pass
 
@@ -139,8 +153,9 @@ def auth_state(browser_type: BrowserType) -> str:
 def logged_in_page(browser: Browser, auth_state: str, request) -> Generator[Page, None, None]:
     """테스트마다: 저장된 세션으로 새 탭만 연다 (재로그인 없음).
 
-    브라우저 콘솔 로그를 계속 모아 테스트 객체에 달아둔다 — 테스트가 실패하면
+    page 와 브라우저 콘솔 로그를 테스트 객체에 달아둔다 — 테스트가 실패하면
     pytest_runtest_makereport 훅이 이걸 꺼내 화면 스크린샷과 함께 리포트에 첨부한다.
+    훅에서 `item.funcargs` 로 page 를 찾지 않는 이유는 그 hook 쪽 주석에 적어 두었다.
     실패 원인이 코드 문제인지 dev 데이터가 바뀐 건지 판단하려면 "그때 화면이
     실제로 어땠는지"가 필요하기 때문이다. 통과한 테스트까지 첨부하면 리포트만
     무거워져서(테스트당 풀페이지 PNG 약 200KB) 실패 케이스에만 남긴다.
@@ -152,6 +167,7 @@ def logged_in_page(browser: Browser, auth_state: str, request) -> Generator[Page
     page.on("console", lambda msg: console_logs.append(f"[{msg.type}] {msg.text}"))
     page.on("pageerror", lambda exc: console_logs.append(f"[pageerror] {exc}"))
     request.node._console_logs = console_logs
+    request.node._page = page
 
     yield page
 
