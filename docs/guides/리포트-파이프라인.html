@@ -1,0 +1,579 @@
+<title>리포트 파이프라인</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap');
+
+  :root {
+    --paper: #F2F4F8;
+    --paper-raised: #FFFFFF;
+    --paper-sunken: #E7EAF0;
+    --ink: #1B222C;
+    --ink-soft: #5B6578;
+    --ink-faint: #8891A0;
+    --line: #DCE1E9;
+    --accent: #0B7285;
+    --accent-ink: #075361;
+    --accent-soft: #E1F0F2;
+    --pass: #1F8A4C;
+    --fail: #C1442E;
+    --skip: #B07A1E;
+    --err: #9A4A98;
+    --radius: 10px;
+    --font-sans: 'IBM Plex Sans KR', 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif;
+    --font-mono: 'IBM Plex Mono', 'D2Coding', Consolas, monospace;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper: #12161C;
+      --paper-raised: #1A2028;
+      --paper-sunken: #0D1015;
+      --ink: #E8ECF2;
+      --ink-soft: #9AA4B6;
+      --ink-faint: #6B7488;
+      --line: #2A323F;
+      --accent: #4FC7DC;
+      --accent-ink: #BEF0F8;
+      --accent-soft: #16333A;
+      --pass: #4FBE7E;
+      --fail: #E27A62;
+      --skip: #D9A63F;
+      --err: #C983C6;
+    }
+  }
+  :root[data-theme="dark"] {
+    --paper: #12161C;
+    --paper-raised: #1A2028;
+    --paper-sunken: #0D1015;
+    --ink: #E8ECF2;
+    --ink-soft: #9AA4B6;
+    --ink-faint: #6B7488;
+    --line: #2A323F;
+    --accent: #4FC7DC;
+    --accent-ink: #BEF0F8;
+    --accent-soft: #16333A;
+    --pass: #4FBE7E;
+    --fail: #E27A62;
+    --skip: #D9A63F;
+    --err: #C983C6;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+  .page { max-width: 900px; margin: 0 auto; padding: 0 24px 96px; }
+
+  h1, h2, h3 { text-wrap: balance; font-weight: 700; margin: 0; }
+  p { margin: 0; }
+  a { color: var(--accent); }
+
+  code, .mono { font-family: var(--font-mono); }
+
+  /* ---------- top bar ---------- */
+  .topbar {
+    position: sticky; top: 0; z-index: 10;
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 16px;
+    padding: 12px 24px;
+    background: var(--paper);
+    border-bottom: 1px solid var(--line);
+    margin: 0 calc(-1 * 24px);
+  }
+  .topbar-name {
+    font-family: var(--font-mono); font-size: 12.5px; font-weight: 600;
+    color: var(--ink-soft); letter-spacing: 0.02em;
+  }
+  .topbar nav { display: flex; gap: 18px; flex-wrap: wrap; }
+  .topbar nav a {
+    font-size: 12.5px; font-weight: 500; text-decoration: none;
+    color: var(--ink-soft);
+  }
+  .topbar nav a:hover { color: var(--accent); }
+
+  /* ---------- hero ---------- */
+  .hero { padding: 56px 0 40px; }
+  .eyebrow {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-family: var(--font-mono); font-size: 12px; font-weight: 500;
+    color: var(--accent-ink); background: var(--accent-soft);
+    border: 1px solid var(--line);
+    padding: 4px 10px; border-radius: 999px; margin-bottom: 18px;
+  }
+  .hero h1 { font-size: 34px; line-height: 1.25; letter-spacing: -0.01em; }
+  .hero .sub {
+    display: block; margin-top: 16px; font-size: 15.5px; line-height: 1.75;
+    color: var(--ink-soft); max-width: 62ch;
+  }
+
+  /* ---------- sections ---------- */
+  section { padding: 52px 0; border-top: 1px solid var(--line); }
+  section:first-of-type { border-top: none; }
+  .section-head { margin-bottom: 22px; }
+  .section-head .tag {
+    display: block; font-family: var(--font-mono); font-size: 11.5px; font-weight: 600;
+    color: var(--ink-faint); letter-spacing: 0.08em; text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+  h2 {
+    font-size: 23px; padding-left: 14px; border-left: 3px solid var(--accent);
+    line-height: 1.3;
+  }
+  .section-intro {
+    margin-top: 14px; font-size: 15px; line-height: 1.75; color: var(--ink-soft);
+    max-width: 66ch;
+  }
+
+  /* ---------- diagram ---------- */
+  .diagram-scroll {
+    margin-top: 28px; overflow-x: auto;
+    background: var(--paper-raised); border: 1px solid var(--line);
+    border-radius: var(--radius); padding: 8px;
+  }
+  .diagram-scroll svg { display: block; min-width: 900px; color: var(--ink); }
+  figcaption.diagram-caption {
+    margin-top: 12px; font-size: 13.5px; line-height: 1.7; color: var(--ink-soft);
+  }
+  figcaption.diagram-caption b { color: var(--ink); font-weight: 600; }
+
+  /* ---------- tool cards ---------- */
+  .tool-grid {
+    margin-top: 26px; display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+    gap: 16px;
+  }
+  .tool-card {
+    background: var(--paper-raised); border: 1px solid var(--line);
+    border-radius: var(--radius); padding: 20px 22px;
+  }
+  .tool-card-head {
+    display: flex; align-items: center; gap: 10px; margin-bottom: 6px;
+  }
+  .badge {
+    font-family: var(--font-mono); font-size: 10.5px; font-weight: 600;
+    letter-spacing: 0.04em;
+    padding: 2px 7px; border-radius: 5px;
+    border: 1px solid var(--line);
+  }
+  .badge.py { color: var(--accent-ink); background: var(--accent-soft); border-color: transparent; }
+  .badge.bat { color: var(--ink-soft); background: var(--paper-sunken); }
+  .badge.sh  { color: var(--ink-soft); background: var(--paper-sunken); }
+  .tool-card-name { font-family: var(--font-mono); font-size: 14.5px; font-weight: 600; }
+  .tool-card-role {
+    font-size: 13.5px; color: var(--ink-soft); margin: 4px 0 14px; line-height: 1.6;
+  }
+  .tool-card ul { margin: 0; padding-left: 18px; display: grid; gap: 7px; }
+  .tool-card li { font-size: 13.5px; line-height: 1.6; color: var(--ink); }
+  .tool-card li code {
+    font-size: 12.5px; background: var(--paper-sunken); padding: 1px 5px; border-radius: 4px;
+  }
+  .io-line {
+    margin-top: 14px; padding-top: 12px; border-top: 1px dashed var(--line);
+    font-family: var(--font-mono); font-size: 12px; color: var(--ink-faint);
+    display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  }
+  .io-line .arrow { color: var(--accent); }
+
+  /* ---------- compare table ---------- */
+  .table-scroll { margin-top: 26px; overflow-x: auto; }
+  table.compare {
+    width: 100%; border-collapse: collapse; min-width: 620px;
+    background: var(--paper-raised); border: 1px solid var(--line); border-radius: var(--radius);
+    overflow: hidden;
+  }
+  table.compare th, table.compare td {
+    text-align: left; padding: 11px 16px; font-size: 13.5px;
+    border-bottom: 1px solid var(--line); vertical-align: top; line-height: 1.6;
+  }
+  table.compare thead th {
+    font-size: 11.5px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase;
+    color: var(--ink-faint); background: var(--paper-sunken);
+  }
+  table.compare th:first-child, table.compare td:first-child {
+    color: var(--ink-soft); font-weight: 500; width: 22%;
+  }
+  table.compare td code { font-size: 12.5px; }
+  table.compare tbody tr:last-child td { border-bottom: none; }
+  .note-line {
+    margin-top: 16px; font-size: 13.5px; line-height: 1.75; color: var(--ink-soft);
+  }
+
+  /* ---------- run section ---------- */
+  .run-block { margin-top: 34px; }
+  .run-block:first-of-type { margin-top: 26px; }
+  .run-title {
+    display: flex; align-items: baseline; gap: 10px; margin-bottom: 14px;
+  }
+  .run-title h3 { font-size: 17px; }
+  .run-title .run-sub { font-size: 12.5px; color: var(--ink-faint); font-family: var(--font-mono); }
+
+  .terminal {
+    background: #0F1419; border: 1px solid #262E38; border-radius: 10px;
+    overflow: hidden; box-shadow: 0 8px 24px -12px rgba(0,0,0,0.45);
+  }
+  .term-titlebar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 8px 14px; background: #171D25; border-bottom: 1px solid #262E38;
+  }
+  .term-titlebar .term-name {
+    display: flex; align-items: center; gap: 7px;
+    font-family: var(--font-mono); font-size: 11.5px; color: #8B96A8;
+  }
+  .term-titlebar .term-name .prompt-glyph { color: #5FD3C4; }
+  .term-titlebar .term-controls { display: flex; gap: 10px; color: #556074; font-size: 11px; font-family: var(--font-mono); }
+  .term-body { padding: 16px 18px 18px; display: grid; gap: 9px; }
+  .term-line { display: flex; align-items: baseline; gap: 8px; }
+  .term-step {
+    flex: none; width: 17px; height: 17px; border-radius: 50%;
+    background: #1E2A2E; color: #5FD3C4; font-family: var(--font-mono);
+    font-size: 10px; font-weight: 600; display: flex; align-items: center; justify-content: center;
+    margin-top: 2px;
+  }
+  .term-cmd { font-family: var(--font-mono); font-size: 13px; line-height: 1.6; overflow-x: auto; white-space: pre; }
+  .term-prompt { color: #5FD3C4; }
+  .term-text { color: #E6EDF3; }
+
+  .step-list { margin-top: 14px; display: grid; gap: 8px; }
+  .step-list .step {
+    display: flex; gap: 10px; font-size: 13px; line-height: 1.6; color: var(--ink-soft);
+  }
+  .step-list .step .num {
+    flex: none; width: 17px; height: 17px; border-radius: 50%;
+    background: var(--accent-soft); color: var(--accent-ink); font-family: var(--font-mono);
+    font-size: 10px; font-weight: 600; display: flex; align-items: center; justify-content: center;
+    margin-top: 2px;
+  }
+  .step-list .step b { color: var(--ink); font-weight: 600; }
+
+  .combo-note {
+    margin-top: 30px; padding: 16px 18px; border-radius: var(--radius);
+    background: var(--paper-sunken); border: 1px solid var(--line);
+    font-size: 13.5px; line-height: 1.75; color: var(--ink-soft);
+  }
+  .combo-note code { font-size: 12.5px; }
+
+  footer {
+    margin-top: 40px; padding-top: 24px; border-top: 1px solid var(--line);
+    font-size: 12.5px; color: var(--ink-faint); line-height: 1.7;
+  }
+</style>
+
+<div class="page">
+  <div class="topbar">
+    <span class="topbar-name">sonyoona/automation</span>
+    <nav>
+      <a href="#flow">전체 흐름</a>
+      <a href="#tools">네 가지 도구</a>
+      <a href="#compare">bat / sh</a>
+      <a href="#run">실행 명령어</a>
+    </nav>
+  </div>
+
+  <header class="hero">
+    <span class="eyebrow">리포트 도구 네 가지</span>
+    <h1>테스트 결과가 리포트가 되기까지</h1>
+    <span class="sub">
+      <code class="mono">pytest</code> 실행 한 번이 두 갈래의 산출물로 갈라진다 &mdash;
+      화면·로그까지 담는 공식 Allure 리포트와, 더블클릭으로 바로 열리는 QA 커스텀 리포트.
+      그 사이를 잇는 네 개 도구가 뭘 하는지, <code class="mono">.bat</code>와
+      <code class="mono">.sh</code>가 뭐가 다른지, PyCharm(PowerShell)에서 각각 어떻게
+      실행하는지를 정리했다.
+    </span>
+  </header>
+
+  <section id="flow">
+    <div class="section-head">
+      <span class="tag">01 · Pipeline</span>
+      <h2>전체 흐름</h2>
+      <p class="section-intro">
+        <code class="mono">postprocess_allure_results.py</code>까지는 두 리포트가 같은
+        JSON을 공유한다. 그 다음부터 갈라진다 &mdash; 공식 리포트는 빌드와 서빙을 한 번씩
+        더 거치고, QA 리포트는 파일 하나로 끝난다.
+      </p>
+    </div>
+
+    <figure class="diagram-scroll">
+      <svg viewBox="0 0 1210 400" role="img"
+        aria-label="pytest 실행이 allure-results JSON을 만들고 postprocess_allure_results.py가 라벨을 정리한 뒤, 공식 Allure 리포트(allure generate → allure open)와 QA 커스텀 리포트(generate_qa_report.py → qa-report.html) 두 갈래로 갈라지는 흐름도">
+        <defs>
+          <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 Z" style="fill:var(--ink-soft)"></path>
+          </marker>
+        </defs>
+
+        <!-- trunk -->
+        <rect x="16" y="33" width="142" height="54" rx="8" style="fill:var(--paper-raised);stroke:var(--ink-soft)" stroke-width="1.5"></rect>
+        <text x="87" y="55" text-anchor="middle" font-size="12" font-weight="600" style="fill:var(--ink)">pytest 실행</text>
+        <text x="87" y="71" text-anchor="middle" font-size="10" style="fill:var(--ink-soft)">-v --alluredir=...</text>
+
+        <line x1="158" y1="60" x2="196" y2="60" style="stroke:var(--ink-soft)" stroke-width="1.5" marker-end="url(#arrow)"></line>
+        <text x="177" y="44" text-anchor="middle" font-size="10.5" style="fill:var(--ink-faint)">결과 JSON</text>
+
+        <rect x="196" y="33" width="178" height="54" rx="8" style="fill:var(--paper-raised);stroke:var(--ink-soft)" stroke-width="1.5"></rect>
+        <text x="285" y="55" text-anchor="middle" font-size="12" font-weight="600" style="fill:var(--ink)">allure-results/</text>
+        <text x="285" y="71" text-anchor="middle" font-size="10" style="fill:var(--ink-soft)">*.json (원본)</text>
+
+        <line x1="374" y1="60" x2="412" y2="60" style="stroke:var(--ink-soft)" stroke-width="1.5" marker-end="url(#arrow)"></line>
+        <text x="393" y="44" text-anchor="middle" font-size="10.5" style="fill:var(--ink-faint)">라벨 정리</text>
+
+        <rect x="412" y="33" width="190" height="54" rx="8" style="fill:var(--paper-raised);stroke:var(--ink-soft)" stroke-width="1.5"></rect>
+        <text x="507" y="55" text-anchor="middle" font-size="12" font-weight="600" style="fill:var(--ink)">postprocess_</text>
+        <text x="507" y="71" text-anchor="middle" font-size="12" font-weight="600" style="fill:var(--ink)">allure_results.py</text>
+
+        <line x1="602" y1="60" x2="633" y2="60" style="stroke:var(--ink-soft)" stroke-width="1.5"></line>
+        <circle cx="636" cy="60" r="4" style="fill:var(--ink-soft)"></circle>
+        <text x="648" y="66" font-size="10" font-style="italic" style="fill:var(--ink-faint)">여기서 갈라진다</text>
+
+        <!-- fork elbows -->
+        <polyline points="636,60 636,155 668,155" style="fill:none;stroke:var(--ink-soft)" stroke-width="1.5" marker-end="url(#arrow)"></polyline>
+        <polyline points="636,60 636,300 668,300" style="fill:none;stroke:var(--ink-soft)" stroke-width="1.5" marker-end="url(#arrow)"></polyline>
+
+        <!-- lane A: official allure -->
+        <text x="672" y="113" font-size="11" font-weight="600" letter-spacing="0.05em" style="fill:var(--ink-faint)" font-family="var(--font-mono)">공식 ALLURE</text>
+
+        <rect x="672" y="128" width="150" height="54" rx="8" style="fill:var(--paper-raised);stroke:var(--ink-soft)" stroke-width="1.5"></rect>
+        <text x="747" y="150" text-anchor="middle" font-size="12" font-weight="600" style="fill:var(--ink)">allure generate</text>
+        <text x="747" y="166" text-anchor="middle" font-size="10" style="fill:var(--ink-soft)">--output allure-report</text>
+
+        <line x1="822" y1="155" x2="856" y2="155" style="stroke:var(--ink-soft)" stroke-width="1.5" marker-end="url(#arrow)"></line>
+        <text x="839" y="139" text-anchor="middle" font-size="10.5" style="fill:var(--ink-faint)">빌드</text>
+
+        <rect x="858" y="128" width="170" height="54" rx="8" stroke-dasharray="5 4" style="fill:var(--accent-soft);stroke:var(--accent)" stroke-width="1.5"></rect>
+        <text x="943" y="150" text-anchor="middle" font-size="12" font-weight="600" style="fill:var(--ink)">allure-report/</text>
+        <text x="943" y="166" text-anchor="middle" font-size="10" style="fill:var(--ink-soft)">index.html</text>
+
+        <line x1="1028" y1="155" x2="1062" y2="155" style="stroke:var(--ink-soft)" stroke-width="1.5" marker-end="url(#arrow)"></line>
+        <text x="1045" y="139" text-anchor="middle" font-size="10.5" style="fill:var(--ink-faint)">서빙</text>
+
+        <rect x="1064" y="128" width="140" height="54" rx="8" stroke-dasharray="5 4" style="fill:var(--accent-soft);stroke:var(--accent)" stroke-width="2"></rect>
+        <text x="1134" y="150" text-anchor="middle" font-size="12" font-weight="600" style="fill:var(--ink)">allure open</text>
+        <text x="1134" y="166" text-anchor="middle" font-size="10" style="fill:var(--ink-soft)">→ 브라우저(로컬)</text>
+
+        <!-- lane B: qa custom -->
+        <text x="672" y="258" font-size="11" font-weight="600" letter-spacing="0.05em" style="fill:var(--ink-faint)" font-family="var(--font-mono)">QA 커스텀</text>
+
+        <rect x="672" y="273" width="195" height="54" rx="8" style="fill:var(--paper-raised);stroke:var(--ink-soft)" stroke-width="1.5"></rect>
+        <text x="769" y="295" text-anchor="middle" font-size="12" font-weight="600" style="fill:var(--ink)">generate_qa_</text>
+        <text x="769" y="311" text-anchor="middle" font-size="12" font-weight="600" style="fill:var(--ink)">report.py</text>
+
+        <line x1="867" y1="300" x2="901" y2="300" style="stroke:var(--ink-soft)" stroke-width="1.5" marker-end="url(#arrow)"></line>
+        <text x="884" y="284" text-anchor="middle" font-size="10.5" style="fill:var(--ink-faint)">생성</text>
+
+        <rect x="903" y="273" width="210" height="54" rx="8" stroke-dasharray="5 4" style="fill:var(--accent-soft);stroke:var(--accent)" stroke-width="2"></rect>
+        <text x="1008" y="295" text-anchor="middle" font-size="12" font-weight="600" style="fill:var(--ink)">qa-report.html</text>
+        <text x="1008" y="311" text-anchor="middle" font-size="10" style="fill:var(--ink-soft)">더블클릭으로 열람</text>
+      </svg>
+      <figcaption class="diagram-caption">
+        점선 상자는 실제로 손에 쥐는 산출물이다. <b>공식 리포트</b>는 빌드 뒤에
+        <code class="mono">allure open</code>으로 한 번 더 서빙해야 브라우저가 뜨고,
+        <b>QA 리포트</b>는 <code class="mono">qa-report.html</code> 한 장으로 끝난다 &mdash;
+        레인의 길이 차이가 곧 단계 차이다.
+      </figcaption>
+    </figure>
+  </section>
+
+  <section id="tools">
+    <div class="section-head">
+      <span class="tag">02 · Tools</span>
+      <h2>네 가지 도구</h2>
+      <p class="section-intro">
+        <code class="mono">.py</code> 둘은 위 다이어그램의 실제 처리 로직이고,
+        <code class="mono">.bat</code>/<code class="mono">.sh</code> 둘은 그 로직을
+        순서대로 이어 부르는 실행 스크립트다.
+      </p>
+    </div>
+
+    <div class="tool-grid">
+      <div class="tool-card">
+        <div class="tool-card-head">
+          <span class="badge py">PY</span>
+          <span class="tool-card-name">postprocess_allure_results.py</span>
+        </div>
+        <p class="tool-card-role">원본 결과 JSON을 사람이 읽기 좋게 다듬는다.</p>
+        <ul>
+          <li><code>fullName</code>을 쪼개 <code>testClass</code>(파일명)·<code>testMethod</code>(함수명) 라벨을 새로 붙인다</li>
+          <li><code>feature</code> 라벨에서 <code>· xxx.py</code> 부분을 잘라내 화면명만 남긴다</li>
+          <li>실패·오류 메시지 맨 앞에 [실패 요약]/[실패 유형]/[실패 위치] 한글 요약 3줄을 붙인다</li>
+          <li>같은 파일을 다시 돌려도 라벨·요약이 중복되지 않는다 (멱등)</li>
+        </ul>
+        <div class="io-line">allure-results/*.json <span class="arrow">→(수정)→</span> 같은 경로</div>
+      </div>
+
+      <div class="tool-card">
+        <div class="tool-card-head">
+          <span class="badge py">PY</span>
+          <span class="tool-card-name">generate_qa_report.py</span>
+        </div>
+        <p class="tool-card-role">서버 없이 더블클릭으로 열리는 자체완결 HTML을 만든다.</p>
+        <ul>
+          <li>모든 결과를 TC ID·화면(feature)·파일명·함수명·상태·소요시간으로 정리한다</li>
+          <li>탭 네 개 &mdash; 요약 / 화면·기능별 / 상태별 / 전체 목록</li>
+          <li>실패 건은 바로 아래 줄에 후처리된 한글 요약을 그대로 붙여 보여준다</li>
+        </ul>
+        <div class="io-line">allure-results/*.json <span class="arrow">→</span> qa-report.html</div>
+      </div>
+
+      <div class="tool-card">
+        <div class="tool-card-head">
+          <span class="badge bat">BAT</span>
+          <span class="tool-card-name">run_tests_and_report.bat</span>
+        </div>
+        <p class="tool-card-role">pytest부터 두 리포트까지 cmd.exe로 한 번에 잇는다.</p>
+        <ul>
+          <li>순서: pytest → 후처리 → (allure 있으면) 공식 리포트 → QA 리포트</li>
+          <li>allure CLI가 없으면 공식 리포트 단계만 건너뛰고 나머지는 계속 진행한다</li>
+          <li>끝나면 <code>pause</code>로 창이 바로 안 닫힌다</li>
+        </ul>
+        <div class="io-line">더블클릭 <span class="arrow">또는</span> <code>.\run_tests_and_report.bat</code></div>
+      </div>
+
+      <div class="tool-card">
+        <div class="tool-card-head">
+          <span class="badge sh">SH</span>
+          <span class="tool-card-name">run_tests_and_report.sh</span>
+        </div>
+        <p class="tool-card-role">같은 네 단계를 bash 문법으로 옮긴 것.</p>
+        <ul>
+          <li>순서·산출물은 <code>.bat</code>와 동일 &mdash; 셸만 다르다</li>
+          <li><code>set -e</code>로 중간 실패 시 이후 단계를 건너뛴다 (pytest 실패는 예외적으로 무시하고 계속 진행)</li>
+        </ul>
+        <div class="io-line"><code>bash run_tests_and_report.sh</code></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="compare">
+    <div class="section-head">
+      <span class="tag">03 · .bat vs .sh</span>
+      <h2>.bat와 .sh, 뭐가 다른가</h2>
+      <p class="section-intro">
+        만들어내는 결과는 같다. 다른 건 그 결과를 만드는 <b style="color:var(--ink)">셸의 문법</b>뿐이다.
+      </p>
+    </div>
+
+    <div class="table-scroll">
+      <table class="compare">
+        <thead>
+          <tr><th>항목</th><th>run_tests_and_report.bat</th><th>run_tests_and_report.sh</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>셸</td>
+            <td>cmd.exe (Windows 내장)</td>
+            <td>bash (Git Bash · WSL · Mac · Linux)</td>
+          </tr>
+          <tr>
+            <td>PowerShell에서 실행</td>
+            <td><code>.\run_tests_and_report.bat</code></td>
+            <td><code>bash run_tests_and_report.sh</code> (Git Bash/WSL 필요)</td>
+          </tr>
+          <tr>
+            <td>폴더 삭제</td>
+            <td><code>rmdir /s /q allure-report</code></td>
+            <td><code>rm -rf allure-report</code></td>
+          </tr>
+          <tr>
+            <td>CLI 존재 확인</td>
+            <td><code>where allure</code></td>
+            <td><code>command -v allure</code></td>
+          </tr>
+          <tr>
+            <td>실패 시 동작</td>
+            <td><code>%errorlevel%</code>을 직접 검사</td>
+            <td><code>set -e</code> &mdash; 실패한 줄에서 중단(단, pytest 뒤엔 <code>|| true</code>로 열어둠)</td>
+          </tr>
+          <tr>
+            <td>종료 후</td>
+            <td><code>pause</code>로 창 유지</td>
+            <td>곧바로 닫힘</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="note-line">
+      PyCharm 터미널의 기본 셸은 PowerShell이고, PowerShell은 <code class="mono">.bat</code>는
+      바로 실행하지만 <code class="mono">.sh</code>는 그 자체로 실행하지 못한다 &mdash;
+      <code class="mono">bash</code>를 앞에 붙여야 하는 이유다.
+    </p>
+  </section>
+
+  <section id="run">
+    <div class="section-head">
+      <span class="tag">04 · Commands</span>
+      <h2>직접 실행하기</h2>
+      <p class="section-intro">
+        PyCharm 터미널(PowerShell) 기준. <b style="color:var(--ink)">순서를 지켜야 한다</b> &mdash;
+        후처리는 반드시 <code class="mono">allure generate</code>보다 먼저 끝나 있어야 한다.
+      </p>
+    </div>
+
+    <div class="run-block">
+      <div class="run-title">
+        <h3>공식 Allure 리포트</h3>
+        <span class="run-sub">5단계 · 서버로 서빙</span>
+      </div>
+
+      <div class="terminal">
+        <div class="term-titlebar">
+          <span class="term-name"><span class="prompt-glyph">&gt;_</span> Windows PowerShell</span>
+          <span class="term-controls">&minus;&nbsp;&nbsp;&#9633;&nbsp;&nbsp;&times;</span>
+        </div>
+        <div class="term-body">
+          <div class="term-line"><span class="term-step">1</span><span class="term-cmd"><span class="term-prompt">PS automation&gt;</span> <span class="term-text">pytest -v --alluredir=allure-results</span></span></div>
+          <div class="term-line"><span class="term-step">2</span><span class="term-cmd"><span class="term-prompt">PS automation&gt;</span> <span class="term-text">python tools/postprocess_allure_results.py allure-results</span></span></div>
+          <div class="term-line"><span class="term-step">3</span><span class="term-cmd"><span class="term-prompt">PS automation&gt;</span> <span class="term-text">Remove-Item -Recurse -Force allure-report -ErrorAction SilentlyContinue</span></span></div>
+          <div class="term-line"><span class="term-step">4</span><span class="term-cmd"><span class="term-prompt">PS automation&gt;</span> <span class="term-text">allure generate allure-results --output allure-report</span></span></div>
+          <div class="term-line"><span class="term-step">5</span><span class="term-cmd"><span class="term-prompt">PS automation&gt;</span> <span class="term-text">allure open allure-report</span></span></div>
+        </div>
+      </div>
+
+      <div class="step-list">
+        <div class="step"><span class="num">1</span><span><b>테스트 실행</b> &mdash; allure-results/에 원본 JSON이 쌓인다</span></div>
+        <div class="step"><span class="num">2</span><span><b>라벨 정리</b> &mdash; feature/testClass/testMethod 분리 + 한글 요약 추가</span></div>
+        <div class="step"><span class="num">3</span><span><b>이전 리포트 폴더 정리</b> &mdash; 재생성 전 지워둔다</span></div>
+        <div class="step"><span class="num">4</span><span><b>HTML 빌드</b> &mdash; allure-report/index.html 생성</span></div>
+        <div class="step"><span class="num">5</span><span><b>로컬 서버로 서빙</b> &mdash; 기본 브라우저가 자동으로 뜬다 (더블클릭으로 열면 정상 표시 안 됨)</span></div>
+      </div>
+    </div>
+
+    <div class="run-block">
+      <div class="run-title">
+        <h3>QA 커스텀 리포트</h3>
+        <span class="run-sub">3단계 · 파일 하나</span>
+      </div>
+
+      <div class="terminal">
+        <div class="term-titlebar">
+          <span class="term-name"><span class="prompt-glyph">&gt;_</span> Windows PowerShell</span>
+          <span class="term-controls">&minus;&nbsp;&nbsp;&#9633;&nbsp;&nbsp;&times;</span>
+        </div>
+        <div class="term-body">
+          <div class="term-line"><span class="term-step">1</span><span class="term-cmd"><span class="term-prompt">PS automation&gt;</span> <span class="term-text">pytest -v --alluredir=allure-results</span></span></div>
+          <div class="term-line"><span class="term-step">2</span><span class="term-cmd"><span class="term-prompt">PS automation&gt;</span> <span class="term-text">python tools/postprocess_allure_results.py allure-results</span></span></div>
+          <div class="term-line"><span class="term-step">3</span><span class="term-cmd"><span class="term-prompt">PS automation&gt;</span> <span class="term-text">python tools/generate_qa_report.py allure-results -o qa-report.html</span></span></div>
+        </div>
+      </div>
+
+      <div class="step-list">
+        <div class="step"><span class="num">1</span><span><b>테스트 실행</b> &mdash; 공식 리포트와 같은 결과를 그대로 쓴다</span></div>
+        <div class="step"><span class="num">2</span><span><b>라벨 정리</b> &mdash; 두 리포트가 이 산출물을 공유한다</span></div>
+        <div class="step"><span class="num">3</span><span><b>qa-report.html 생성</b> &mdash; 더블클릭으로 바로 열람 (서버 불필요)</span></div>
+      </div>
+    </div>
+
+    <p class="combo-note">
+      매번 위 줄들을 손으로 치는 대신, <code class="mono">.\run_tests_and_report.bat</code>
+      (또는 <code class="mono">bash run_tests_and_report.sh</code>) 하나로 두 리포트를
+      순서대로 이어서 만들 수 있다 &mdash; 공식 리포트가 먼저 만들어지고, 그 다음 QA
+      리포트가 얹히는 순서는 그대로다.
+    </p>
+  </section>
+
+  <footer>
+    sonyoona/automation &middot; tools/postprocess_allure_results.py &middot; tools/generate_qa_report.py &middot;
+    run_tests_and_report.bat &middot; run_tests_and_report.sh
+  </footer>
+</div>
