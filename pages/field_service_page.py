@@ -36,6 +36,17 @@ class FieldServicePage:
     def status_tabs(self) -> Locator:
         return self.page.get_by_test_id("fs-status-tabs__tabs")
 
+    def status_tab(self, name: str) -> Locator:
+        """상태 탭 하나. 2026-09-08 실측 - `button[role="tab"]` 6개, testid 는 없다.
+
+        **시작 앵커 정규식이 필수다** - `완료` 로 찾으면 `배정완료` 까지 잡힌다.
+        탭 텍스트에는 건수 배지가 붙어 있어서(`완료 226`) `exact=True` 는 쓸 수 없고,
+        건수를 이름에 넣으면 데이터가 바뀔 때마다 깨진다.
+        """
+        return self.status_tabs.get_by_role(
+            "tab", name=re.compile(rf"^{re.escape(name)}")
+        )
+
     @property
     def new_service_button(self) -> Locator:
         return self.page.get_by_test_id("fs-status-tabs__new-service-btn")
@@ -287,6 +298,16 @@ class FieldServicePage:
     def search_by_plate(self, plate: str) -> None:
         self.plate_input.fill(plate)
         self.search()
+
+    @allure.step("[{name}] 상태 탭 클릭")
+    def click_status_tab(self, name: str) -> None:
+        """상태 탭을 누르고 목록이 다시 그려질 때까지 기다린다.
+
+        건수 배지는 탭을 눌러도 이미 채워져 있으므로 여기서는 표만 기다린다
+        (`wait_status_counts` 는 화면 진입 때 한 번이면 된다).
+        """
+        self.status_tab(name).click()
+        self.wait_table_settled()
 
     @allure.step("조회 버튼 클릭")
     def search(self) -> None:
