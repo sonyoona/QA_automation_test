@@ -85,14 +85,15 @@ HTML 태그·CSS로 요소를 잡던 방식에서 <code>data-testid</code>로 �
 <li><a href="#s3">3. testid의 단점 — 정답이 아닌 이유</a></li>
 <li><a href="#s4">4. testid 말고 다른 방법들</a></li>
 <li><a href="#s5">5. 우리 화면 실측 결과</a></li>
-<li><a href="#s6">6. Page Object — 처음부터 풀어서</a></li>
-<li><a href="#s7">7. 테스트에 testid가 안 보이는 게 왜 좋은가</a></li>
-<li><a href="#s8">8. '요령'이란 무엇인가</a></li>
-<li><a href="#s9">9. 실제로 만든 것</a></li>
-<li><a href="#s10">10. 다음 할 일</a></li>
-<li><a href="#s11">11. 위양성 — 통과하는데 검증 안 하는 테스트</a></li>
-<li><a href="#s12">12. 넷을 어떻게 조합할 것인가</a></li>
-<li><a href="#s13">13. 이 규칙들은 어디에 살고 있나</a></li>
+<li><a href="#s6">6. PK — 행을 데이터의 신원으로 잡기</a></li>
+<li><a href="#s7">7. Page Object — 처음부터 풀어서</a></li>
+<li><a href="#s8">8. 테스트에 testid가 안 보이는 게 왜 좋은가</a></li>
+<li><a href="#s9">9. '요령'이란 무엇인가</a></li>
+<li><a href="#s10">10. 실제로 만든 것</a></li>
+<li><a href="#s11">11. 다음 할 일</a></li>
+<li><a href="#s12">12. 위양성 — 통과하는데 검증 안 하는 테스트</a></li>
+<li><a href="#s13">13. 넷을 어떻게 조합할 것인가</a></li>
+<li><a href="#s14">14. 이 규칙들은 어디에 살고 있나</a></li>
 </ul>
 </div>
 
@@ -365,7 +366,149 @@ dev에 실제 서비스 신청 건이 생성된다. "어차피 유효성 검사�
 
 <hr>
 
-<h2 id="s6"><span class="num">6</span>Page Object — 처음부터 풀어서</h2>
+<h2 id="s6"><span class="num">6</span>PK — 행을 데이터의 신원으로 잡기</h2>
+
+<p>4장 ③에서 "행 식별에는 PK가 담긴 속성을 요청한다"고 했다. 현장 서비스 화면은 실제로
+붙어 있어서, 우리 코드가 그걸 어떻게 쓰는지 여기 모아둔다.</p>
+
+<h3>PK란 무엇인가</h3>
+
+<p><strong>Primary Key</strong> — 데이터베이스가 한 건을 다른 건과 구별하려고 붙여둔 번호다.
+서비스 신청 한 건이 만들어질 때 부여되고, 그 뒤로 <strong>바뀌지 않는다.</strong></p>
+
+<pre><code><span class="cm">화면에 보이는 값                     PK</span>
+차량번호  002테8511   ← 같은 차량이 여러 건    10675  ← 건마다 다르다
+업체명    IMS모빌리티  ← 여러 건이 같은 업체    10674
+작업신청일 2026-08-28  ← 같은 날 여러 건        10673</code></pre>
+
+<p>표에 보이는 값은 <strong>여러 행이 같을 수 있고 바뀔 수도 있다.</strong> PK만 유일하고 불변이다.
+그래서 "이 행이 그 행인가"를 물어야 할 때는 PK로 묻는다.</p>
+
+<h3>화면 어디에 들어 있나</h3>
+
+<p>프론트가 testid 뒤에 PK를 붙여줬다. 행과 그 행의 액션 버튼이 <strong>같은 PK를 공유</strong>한다.</p>
+
+<pre><code>&lt;tr data-testid="fs-table__row--10679"&gt;          <span class="cm">← 행</span>
+    ...
+    &lt;button data-testid="fs-table__action-btn--10679"&gt;수정&lt;/button&gt;   <span class="cm">← 그 행의 버튼</span>
+&lt;/tr&gt;</code></pre>
+
+<p>이 "같은 PK를 공유한다"가 중요하다. 버튼을 <strong>행 안에서 찾지 않아도</strong> 되고,
+반대로 <strong>행과 버튼이 짝이 맞는지</strong>를 검증할 수 있게 된다.</p>
+
+<h3>기능 ① — 화면에 있는 PK를 다 뽑는다</h3>
+
+<pre><code><span class="cm"># pages/field_service_page.py</span>
+@property
+def rows(self) -&gt; Locator:
+    return self.page.locator('[data-testid^="fs-table__row--"]')   <span class="cm">← ^= 는 "이 문자열로 시작하는"</span>
+
+def row_ids(self) -&gt; list[str]:
+    return [
+        el.get_attribute("data-testid").split("--")[1]             <span class="cm">← "fs-table__row--10679" → "10679"</span>
+        for el in self.rows.all()
+    ]</code></pre>
+
+<p>PK를 미리 알 수는 없다. <strong>접두어로 행을 다 잡은 뒤 뒷부분을 잘라내</strong> 목록을 만든다.
+<code>split("--")</code>는 문자열을 <code>--</code> 기준으로 쪼개고, <code>[1]</code>은 그 뒤쪽을 집는다.</p>
+
+<pre><code><span class="cm">>>> "fs-table__row--10679".split("--")
+['fs-table__row', '10679']                     ← [0] 과 [1]</span></code></pre>
+
+<h3>기능 ② — PK로 특정 행·버튼을 집는다</h3>
+
+<pre><code>def row(self, service_id: str) -&gt; Locator:
+    return self.page.get_by_test_id(f"fs-table__row--{service_id}")
+
+def row_action_button(self, service_id: str) -&gt; Locator:
+    return self.page.get_by_test_id(f"fs-table__action-btn--{service_id}")</code></pre>
+
+<p>f-string 안의 <code>{service_id}</code> 자리에 PK가 들어가 <code>fs-table__row--10679</code>가 만들어진다.
+<strong>PK를 코드에 적어두지 않는다</strong> — dev와 운영의 번호가 다르고, dev 데이터도 바뀌기 때문이다.
+언제나 <code>row_ids()</code>로 <strong>화면에서 읽어서</strong> 그 값을 넘긴다.</p>
+
+<h3>기능 ③ — PK를 열쇠로 다른 값을 붙인다</h3>
+
+<pre><code>def row_statuses(self) -&gt; dict[str, str]:
+    index = self.column_index("상태")
+    return {
+        service_id: self.row(service_id).locator("td").nth(index).inner_text().strip()
+        for service_id in self.row_ids()
+    }
+
+<span class="cm">{'10682': '대기', '10680': '배정완료', '10675': '완료', ...}</span></code></pre>
+
+<p>PK를 열쇠(key)로 쓰면 <strong>"이 행의 상태"와 "이 행의 버튼"을 같은 이름으로 부를 수 있다.</strong>
+아래 TC가 이 구조 위에 서 있다.</p>
+
+<h3>우리 코드에서 실제로 쓴 곳 ① — 행과 버튼이 짝이 맞는가 (TC-260907-003)</h3>
+
+<pre><code>row_ids = fs.row_ids()
+for row_id in row_ids:
+    button = fs.row_action_button(row_id)        <span class="cm">← 행의 PK 로 버튼을 찾는다</span>
+    if not button.is_visible():
+        problems.append(f"{row_id}: 버튼이 없거나 숨겨져 있음")</code></pre>
+
+<p>행 안에서 버튼을 찾는 게 아니라 <strong>행의 PK로 버튼을 따로 찾는다.</strong> 그래서
+"10679번 행은 있는데 10679번 버튼이 없다"를 잡아낼 수 있다. 행 안에서 찾았다면
+버튼이 다른 행 것으로 잘못 붙어 있어도 모른다.</p>
+
+<h3>우리 코드에서 실제로 쓴 곳 ② — 두 화면에 같은 건이 있는가 (TC-260907-007)</h3>
+
+<p>PK가 <strong>없으면 아예 못 쓰는</strong> 검증이다. [전체] 탭에서 상태가 <code>대기</code>인 행을 모아두고,
+[대기] 탭 결과에 그것들이 다 들어 있는지 본다.</p>
+
+<pre><code><span class="cm"># [전체] 탭에서 정답을 만든다</span>
+all_ids = fs.row_ids()
+all_statuses = fs.row_statuses()
+expected_ids = [i for i in all_ids if all_statuses[i] == tab]     <span class="cm">← PK 목록</span>
+
+<span class="cm"># [대기] 탭으로 옮겨서 대조한다</span>
+fs.click_status_tab(tab)
+row_ids = fs.row_ids()
+missing = [i for i in expected_ids if i not in row_ids]           <span class="cm">← 빠진 건</span></code></pre>
+
+<p><strong>탭을 옮기면 화면이 통째로 다시 그려진다.</strong> 그 전에 잡아둔 Locator는 무효가 되고,
+표시 텍스트는 다른 행과 겹칠 수 있다. 살아남는 것은 PK 문자열뿐이다 —
+파이썬 변수에 담아두면 화면이 뭘 하든 그대로 남는다.</p>
+
+<h3>우리 코드에서 실제로 쓴 곳 ③ — 실패 메시지에 어느 행인지 남긴다</h3>
+
+<pre><code><span class="hd-bad">나쁨</span> <span class="cm">— 어느 행인지 알 수 없어 화면에서 다시 찾아야 한다</span>
+<span class="blk-bad">assert not problems, "[FAIL] 액션 버튼이 없는 행이 있다"</span>
+
+<span class="hd-good">좋음</span> <span class="cm">— PK 가 있으면 그 건을 바로 열어볼 수 있다</span>
+<span class="blk-good">assert not broken, f"[FAIL] 액션 버튼이 정상이 아닌 행: {broken} / 전체 {len(row_ids)}행"
+
+[FAIL] 액션 버튼이 정상이 아닌 행: ["10653: 상태 '취소' 인데 라벨이 '상세' (기대 '수정')"]</span></code></pre>
+
+<h3>주의할 것</h3>
+
+<table>
+<thead><tr><th>하지 말 것</th><th>왜</th></tr></thead>
+<tbody>
+<tr><td>PK를 코드에 적어두기 (<code>row("10679")</code>)</td><td>dev·운영이 다르고 데이터도 바뀐다. 화면에서 읽어 쓴다</td></tr>
+<tr><td>PK 순서·범위에 기대기 (번호가 클수록 최신 등)</td><td>부여 규칙은 서버 사정이다. 정렬은 화면의 정렬 기준을 본다</td></tr>
+<tr><td>PK가 있다고 무조건 행을 식별하기</td><td>먼저 "식별이 필요한가"를 묻는다 — 아래 참고</td></tr>
+</tbody>
+</table>
+
+<h3>PK가 없는 화면은 어떻게 하나</h3>
+
+<p>모니터 화면에는 testid도 PK도 없다. 그런데 문제가 안 된다 —
+<strong>"N번째 행"이 아니라 "모든 행이 조건을 만족한다"는 전수 검사로 바꾸면 식별 문제 자체가 사라지기 때문이다.</strong></p>
+
+<pre><code><span class="cm">식별이 정말 필요한 자리는 셋뿐이다</span>
+① 특정 행을 눌러 상세 열기
+② 페이지네이션 (1페이지 끝과 2페이지 첫 행이 같은 건인지)
+③ 조작 전후로 같은 행 다시 찾기</code></pre>
+
+<p>그 셋이 아니면 전수 검사를 먼저 검토한다. 셋에 해당하는데 PK가 없으면
+<code># TODO(testid):</code> 주석으로 남겨 FE 요청 근거로 쌓는다 (CLAUDE.md "행 식별" 장).</p>
+
+<hr>
+
+<h2 id="s7"><span class="num">7</span>Page Object — 처음부터 풀어서</h2>
 
 <p>testid를 찾았다면 다음 질문은 <strong>"그 문자열을 어디에 적을 것인가"</strong>다.</p>
 
@@ -382,7 +525,7 @@ def test_b(page):
 <span class="cm"># … 이하 28개 더, 전부 같은 두 줄로 시작</span></span></code></pre>
 
 <p>흔히 "이름 바뀌면 30곳 고쳐야 하잖아"라고 하는데, <strong>그건 사실 약한 이유다</strong> —
-찾아 바꾸기 한 번이면 된다. 진짜 문제는 아래 7장에 있다.</p>
+찾아 바꾸기 한 번이면 된다. 진짜 문제는 아래 8장에 있다.</p>
 
 <h3>1단계 — 함수로 빼기 (이미 하고 있는 것)</h3>
 
@@ -437,7 +580,7 @@ fs.row_ids()</code></pre>
 
 <hr>
 
-<h2 id="s7"><span class="num">7</span>테스트에 testid가 안 보이는 게 왜 좋은가</h2>
+<h2 id="s8"><span class="num">8</span>테스트에 testid가 안 보이는 게 왜 좋은가</h2>
 
 <p><strong>"testid가 안 보이는 것" 자체는 목적이 아니라 결과다.</strong> 진짜 이유는 셋이고, 세기가 다르다.</p>
 
@@ -485,7 +628,7 @@ fs.row_ids()</code></pre>
 
 <hr>
 
-<h2 id="s8"><span class="num">8</span>'요령'이란 무엇인가</h2>
+<h2 id="s9"><span class="num">9</span>'요령'이란 무엇인가</h2>
 
 <blockquote class="intro">
 <p><strong>그냥 하면 되는 조작</strong>과 <strong>알고 해야 되는 조작</strong>의 차이.
@@ -578,7 +721,7 @@ assert count &gt; 0        <span class="cm"># "조회 결과가 없습니다" �
 
 <hr>
 
-<h2 id="s9"><span class="num">9</span>실제로 만든 것</h2>
+<h2 id="s10"><span class="num">10</span>실제로 만든 것</h2>
 
 <h3>파일 구성</h3>
 
@@ -628,7 +771,7 @@ return [label for label, attr in fields if not getattr(owner, attr).is_visible()
 
 <hr>
 
-<h2 id="s10"><span class="num">10</span>다음 할 일</h2>
+<h2 id="s11"><span class="num">11</span>다음 할 일</h2>
 
 <ol>
 <li><strong>TC 5개를 실제로 돌려본다</strong> — 화면 진입 경로와 렌더 타이밍을 확인</li>
@@ -650,7 +793,7 @@ pytest -m tc_260907_003 -v      <span class="cm"># TC 하나만</span></code></p
 
 <hr>
 
-<h2 id="s11"><span class="num">11</span>위양성 — 통과하는데 검증 안 하는 테스트</h2>
+<h2 id="s12"><span class="num">12</span>위양성 — 통과하는데 검증 안 하는 테스트</h2>
 
 <blockquote class="intro">
 <p>앞의 10개 장은 <strong>"요소를 어떻게 잡을 것인가"</strong>였다. 이 장은 층이 다르다 —
@@ -841,7 +984,7 @@ for option in RESELLER_OPTIONS:
 없었다</strong>는 점이다. 위 수정으로 함께 정리됐다.</p>
 
 <blockquote>
-<p>6장에서 Page Object의 이유로 "이름 바뀌면 한 곳만 고친다"를 들었는데,
+<p>7장에서 Page Object의 이유로 "이름 바뀌면 한 곳만 고친다"를 들었는데,
 <strong>진짜 이유는 이쪽이다</strong> — 읽는 방법이 한 곳에 없으면 TC마다 다른 방법을 골라 쓰게 되고,
 그중 하나가 위양성이 되어도 <strong>이름은 멀쩡해서 아무도 눈치채지 못한다.</strong></p>
 </blockquote>
@@ -887,10 +1030,10 @@ assert "파트너" not in header_texts, ...  <span class="cm"># ← 헤더를 �
 
 <hr>
 
-<h2 id="s12"><span class="num">12</span>넷을 어떻게 조합할 것인가</h2>
+<h2 id="s13"><span class="num">13</span>넷을 어떻게 조합할 것인가</h2>
 
 <blockquote class="intro">
-<p>4장에서 testid · aria-label · PK 속성 · API를 하나씩 봤고, 6장에서 Page Object를 봤다.
+<p>4장에서 testid · aria-label · PK 속성 · API를 하나씩 봤고, 6장에서 PK를 자세히, 7장에서 Page Object를 봤다.
 그럼 <strong>실제로는 뭘 골라야 하나?</strong> 이 장은 그 질문에 답한다 —
 <strong>이상적인 답과 실무의 답이 다르고, 그 차이에 이유가 있다.</strong></p>
 </blockquote>
@@ -937,7 +1080,7 @@ testid는 화면에 보이지 않는 속성이라, <strong>라벨이 통째로 �
 <span class="blk-good">page.get_by_role("button", name="조회").click()</span></code></pre>
 
 <blockquote>
-<p>이게 11장(위양성)과 이어진다. <strong>testid만으로 잡는 화면은 "보이는 것"에 대한 검증이
+<p>이게 12장(위양성)과 이어진다. <strong>testid만으로 잡는 화면은 "보이는 것"에 대한 검증이
 저절로 약해진다.</strong> 그래서 노출 검증 TC에서는 <code>expect(...).to_be_visible()</code>처럼
 <strong>보이는가</strong>를 따로 확인해야 한다 — testid로 찾았다는 사실 자체는 아무것도 보장하지 않는다.</p>
 </blockquote>
@@ -1045,7 +1188,7 @@ console.table([...document.querySelectorAll('button')]
 
 <hr>
 
-<h2 id="s13"><span class="num">13</span>이 규칙들은 어디에 살고 있나</h2>
+<h2 id="s14"><span class="num">14</span>이 규칙들은 어디에 살고 있나</h2>
 
 <p><strong>문서는 읽히지 않으면 없는 것과 같다.</strong> 이 문서는 사람이 한 번 읽는 것이고,
 매번 지켜져야 하는 규칙은 다른 자리에 있어야 한다.</p>
@@ -1059,9 +1202,9 @@ console.table([...document.querySelectorAll('button')]
 </tbody>
 </table>
 
-<h3>11장(위양성)은 <code>CLAUDE.md</code>에 옮겨 적었다</h3>
+<h3>12장(위양성)은 <code>CLAUDE.md</code>에 옮겨 적었다</h3>
 
-<p>이 문서의 11장은 <strong>왜</strong>를 설명하고, <code>CLAUDE.md</code>에는 <strong>무엇을 지킬지</strong>만 넣었다.</p>
+<p>이 문서의 12장은 <strong>왜</strong>를 설명하고, <code>CLAUDE.md</code>에는 <strong>무엇을 지킬지</strong>만 넣었다.</p>
 
 <pre><code>CLAUDE.md
   ## 위양성 — 통과하는데 검증 안 하는 테스트   <span class="cm">← 새 장 (검증 범위 다음)</span>

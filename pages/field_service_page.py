@@ -287,22 +287,53 @@ class FieldServicePage:
         """
         return self.EMPTY_TEXT in self.table_root.inner_text()
 
+    # 요약을 만들다가 화면 읽기가 막히면 짧게 포기한다. 여기서 오래 끄는 것은
+    # "왜 실패했는지" 를 늦게 알려주는 것뿐이라 이득이 없다.
+    SUMMARY_READ_TIMEOUT_MS = 2_000
+
+    def _peek(self, locator: Locator, limit: int = 200) -> str | None:
+        """요약용 텍스트 읽기. 못 읽으면 None 을 돌려주고 **예외를 내지 않는다**."""
+        try:
+            return locator.inner_text(timeout=self.SUMMARY_READ_TIMEOUT_MS)[:limit]
+        except Exception:
+            return None
+
     def state_summary(self) -> str:
-        """0 건일 때 원인을 가르기 위한 화면 상태 요약. 실패 메시지에 담는다.
+        """행이 0 건일 때 원인을 가르기 위한 화면 상태 요약. 실패 메시지에 담는다.
 
-        "조회된 행이 0건" 이라는 말만으로는 원인을 셋 중 하나로 좁힐 수 없다 -
-        ① 그 탭에 실제로 건이 없다 ② 기본 필터(날짜 범위 등)가 최근 건을 걸러낸다
-        ③ 로딩·세션이 실패해 안 그려졌다. 셋의 겉모습이 같아서, 값을 함께 남기지 않으면
-        리포트만 보고는 판별이 불가능하다.
+        ★ 이 함수는 예외를 던지지 않는다. `wait_status_counts()` 의 except 블록에서
+          불리는데, 거기서 예외가 나면 정작 알려주려던 원인("데이터가 도착하지 않았다")이
+          통째로 가려지고 엉뚱한 타임아웃만 뜬다. 그리고 세션이 끊긴 화면은 바로 그
+          "읽기가 막히는" 상태라, 가장 필요한 순간에 요약이 사라지게 된다.
+          못 읽은 항목은 값 대신 `<못 읽음>` 으로 남긴다.
 
-        상태 탭 텍스트에는 탭별 건수 배지가 들어 있어 ①과 ②·③을 가르는 근거가 된다 -
-        모든 탭이 0 이면 데이터가 없는 것이고, 배지에 숫자가 있는데 목록만 비었으면
-        필터나 로딩 쪽이다.
+        읽는 것은 넷이다.
+
+        | 항목 | 무엇을 가르나 |
+        |---|---|
+        | `행수` | 표에 실제로 붙은 행 개수 |
+        | `빈결과안내` | 화면이 "0 건" 이라고 말하고 있는가 (아직 그리는 중과 구분) |
+        | `상태탭` | 배지에 숫자가 있는가 - **데이터가 도착했다는 신호** |
+        | `표` | 위 셋으로도 안 갈릴 때 눈으로 보는 원문 |
+
+        판별은 이렇게 한다. 배지에 숫자가 없으면 데이터 미도착이고(2026-09-08 실측 -
+        591 건짜리 화면이 도착 전이라 `데이터가 없습니다` 로 보였다), 배지에 숫자가 있는데
+        행이 0 이면 목록을 못 읽은 것이다. 배지가 0 이면 그 탭에 진짜로 건이 없다.
         """
+        tabs = self._peek(self.status_tabs)
+        table = self._peek(self.table_root, limit=150)
+        try:
+            row_count: object = len(self.rows.all())
+        except Exception:
+            row_count = None
+
+        unknown = "<못 읽음>"
         return (
-            f"빈결과안내={self.is_empty_result()} / "
-            f"상태탭={self.status_tabs.inner_text()!r} / "
-            f"표={self.table_root.inner_text()[:200]!r}"
+            f"행수={unknown if row_count is None else row_count} / "
+            f"빈결과안내={unknown if table is None else (self.EMPTY_TEXT in table)} / "
+            # 배지 텍스트는 줄바꿈으로 와서 그대로 두면 메시지가 세로로 늘어진다
+            f"상태탭={unknown if tabs is None else repr(' | '.join(tabs.split(chr(10))))} / "
+            f"표={unknown if table is None else repr(table)}"
         )
 
     @allure.step("차량번호 {plate} 로 검색")

@@ -207,10 +207,15 @@ def test_table_rows_have_action_button(fs: FieldServicePage) -> None:
     (ACTION_LABEL_BY_STATUS 주석 참고). 이 TC 는 [전체] 탭만 보므로 그때그때 1페이지에
     올라온 상태만 검증한다 - 상태별로 빠짐없이 보려면 탭을 도는 TC 가 따로 있어야 한다.
     """
+    total = fs.status_tab_count(ALL_TAB)
     row_ids = fs.row_ids()
+
+    if total == 0:
+        pytest.skip(f"[{ALL_TAB}] 탭에 건이 0건 - 검증할 행이 없다 (탭 배지 기준)")
+
     assert row_ids, (
-        "[FAIL] 조회된 행이 0건입니다 - 그 탭에 건이 없는 건지, 기본 필터가 걸러낸 건지, "
-        "로딩·세션이 실패한 건지 확인 필요\n"
+        f"[FAIL] [{ALL_TAB}] 탭 배지는 {total}건인데 조회된 행이 0건이다 - "
+        "데이터가 없는 게 아니라 목록을 못 읽은 것이다\n"
         f"        {fs.state_summary()}"
     )
 
