@@ -193,7 +193,7 @@ def test_table_rows_have_action_button(fs: FieldServicePage) -> None:
         elif not expected and label not in ACTION_BUTTON_LABELS:
             broken.append(f"{row_id}: 미실측 상태 {status!r} 의 라벨이 {label!r}")
 
-    assert not broken, (
+    assert not broken, (   #broken이 [] 빈 행일때
         f"[FAIL] 액션 버튼이 정상이 아닌 행: {broken} / 전체 {len(row_ids)}행 "
         f"(상태별 기대 라벨: {ACTION_LABEL_BY_STATUS})"
     )
@@ -209,14 +209,23 @@ def test_new_service_popup_fields_visible(fs: FieldServicePage) -> None:
     WHEN   [신규 서비스 신청] 버튼을 눌러 팝업을 열면
     THEN   서비스 정보 · 차량 선택 영역의 15개 입력 항목이 모두 노출된다
 
-    ★ 값을 채우거나 제출하지 않는다 - 노출 여부만 확인하고 팝업을 닫는다.
+    ★ 값을 채우거나 제출하지 않는다 - 노출 여부만 확인한다.
+
+    assert 를 close() 보다 먼저 두는 이유 - 실패하면 close() 에 도달하지 않아 팝업이 열린
+    화면이 그대로 리포트에 첨부된다. 먼저 닫으면 "어느 필드가 안 보이는가" 로 실패했는데
+    스크린샷에는 목록 화면만 남아 정작 봐야 할 것이 사라진다 (conftest 의 첨부 훅은
+    fixture teardown 전에 그 시점 화면을 찍는다).
+
+    통과했을 때 닫는 것도 정리 목적은 아니다 - logged_in_page 가 function scope 라
+    테스트마다 컨텍스트를 새로 만들고 끝나면 닫으므로, 팝업이 열린 채 끝나도 다음 TC 에
+    남지 않는다. 화면을 원래 상태로 돌려놓는다는 뜻만 남긴다.
     """
     popup = fs.open_new_service_popup()
 
     hidden = _find_hidden(popup, NEW_POPUP_FIELDS)
-    popup.close()
 
     assert not hidden, f"[FAIL] 노출되지 않은 팝업 입력 항목: {hidden}"
+    popup.close()
 
 
 @allure.title("TC-260907-005 | 팝업 하단 버튼이 노출되고 닫기로 화면이 복귀한다")
