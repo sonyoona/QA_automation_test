@@ -35,6 +35,11 @@ ACTION_LABEL_BY_STATUS = {
     "작업불가": "상세",
 }
 
+# 상태 탭 이름. [전체] 를 뺀 5개이고, 대응표의 키와 같은 것이라 따로 적지 않고 뽑아 쓴다 -
+# 따로 적으면 대응표에 상태를 추가할 때 한쪽만 고쳐진다.
+STATUS_TABS = list(ACTION_LABEL_BY_STATUS)
+ALL_TAB = "전체"
+
 # 실측된 라벨 전체. 상태 탭 6개(전체 제외 5개)를 다 봤으므로 지금은 모든 상태가 위 표에 있고,
 # 아래 집합은 **나중에 상태가 새로 생겼을 때**를 위한 그물이다 - 모르는 상태가 와도
 # 라벨이 둘 중 하나이긴 한지까지는 본다.
@@ -221,7 +226,7 @@ def test_table_rows_have_action_button(fs: FieldServicePage) -> None:
           f"{sorted(set(seen))}")
 
 
-@pytest.mark.parametrize("tab", list(ACTION_LABEL_BY_STATUS))
+@pytest.mark.parametrize("tab", STATUS_TABS)
 @allure.title("TC-260907-006 | [{tab}] 탭 — 그 상태에 맞는 액션 버튼 라벨이 노출된다")
 @allure.label("testcase", "TC-260907-006")
 def test_action_label_by_status(fs: FieldServicePage, tab: str) -> None:
@@ -262,6 +267,75 @@ def test_action_label_by_status(fs: FieldServicePage, tab: str) -> None:
         f"(상태별 기대 라벨: {ACTION_LABEL_BY_STATUS})"
     )
     print(f"[검증] [{tab}] 탭 {len(row_ids)}행 - 관찰된 (상태, 라벨): {sorted(set(seen))}")
+
+
+@pytest.mark.parametrize("tab", STATUS_TABS)
+@allure.title("TC-260907-007 | [{tab}] 탭 — 그 상태의 건만, 빠짐없이 조회된다")
+@allure.label("testcase", "TC-260907-007")
+def test_status_tab_filters_rows(fs: FieldServicePage, tab: str) -> None:
+    """
+    GIVEN  [전체] 탭에서 1페이지 행들의 상태를 미리 읽어둔 상태에서
+    WHEN   상태 탭을 누르면
+    THEN   ① 결과 행이 전부 그 상태이고 ② [전체] 탭에 있던 그 상태 건이 빠지지 않았다
+
+    **한 방향만 보면 반쪽이다** - ①만 보면 필터가 아무것도 안 돌려줘도(0건) 통과하고,
+    ②만 보면 필터가 전부 돌려줘도 통과한다. 둘을 같이 걸어야 "그 상태만, 빠짐없이" 가 된다.
+
+    ② 의 전제 - 두 목록이 같은 기준(작업신청일 내림차순)으로 정렬돼 있다는 것.
+    그러면 "[전체] 1페이지에 있는 X 상태 행" 은 반드시 "[X] 탭 1페이지" 안에 있다.
+    전체에서 그 행보다 위에 있는 행이 9개 이하이므로, X 중에서도 9번째 안이기 때문이다.
+    정렬 기본값이 바뀌면 이 전제가 깨지고 ② 가 거짓 실패를 낸다 - 그때는 실패 메시지의
+    "정렬 전제" 문구를 보고 여기부터 의심한다.
+
+    ★ 아무것도 누르지 않는다 - 탭 클릭은 조회다.
+    """
+    with allure.step(f"[{ALL_TAB}] 탭에서 기준 목록 읽기"):
+        fs.click_status_tab(ALL_TAB)
+        all_ids = fs.row_ids()
+        assert all_ids, (
+            f"[FAIL] [{ALL_TAB}] 탭이 0건이라 기준 목록을 만들 수 없다\n"
+            f"        {fs.state_summary()}"
+        )
+        _expect_rendered(fs.row_action_button(all_ids[0]), f"[{ALL_TAB}] 탭 첫 행")
+        all_statuses = fs.row_statuses()
+        expected_ids = [i for i in all_ids if all_statuses[i] == tab]
+
+    fs.click_status_tab(tab)
+    total = fs.status_tab_count(tab)
+    row_ids = fs.row_ids()
+
+    if total == 0:
+        # 건이 없다는 배지를 그대로 믿지 않는다 - [전체] 탭에 그 상태가 보였다면 모순이다
+        assert not expected_ids, (
+            f"[FAIL] [{tab}] 탭 배지는 0건인데 [{ALL_TAB}] 탭에는 그 상태 행이 있다: {expected_ids}"
+        )
+        pytest.skip(f"[{tab}] 탭에 건이 0건 - 필터 결과를 검증할 행이 없다")
+
+    assert row_ids, (
+        f"[FAIL] [{tab}] 탭 배지는 {total}건인데 조회된 행이 0건이다 - "
+        "필터가 걸러낸 게 아니라 목록을 못 읽은 것이다\n"
+        f"        {fs.state_summary()}"
+    )
+
+    _expect_rendered(fs.row_action_button(row_ids[0]), f"[{tab}] 탭 첫 행")
+    statuses = fs.row_statuses()
+
+    with allure.step("① 결과에 다른 상태가 섞이지 않았는가 (오검출)"):
+        wrong = {i: statuses[i] for i in row_ids if statuses[i] != tab}
+        assert not wrong, (
+            f"[FAIL] [{tab}] 탭 결과에 다른 상태가 섞였다 (행 PK: 상태): {wrong} "
+            f"/ 전체 {len(row_ids)}행"
+        )
+
+    with allure.step("② 그 상태인데 결과에서 빠진 건이 없는가 (누락)"):
+        missing = [i for i in expected_ids if i not in row_ids]
+        assert not missing, (
+            f"[FAIL] [{ALL_TAB}] 탭에서 상태가 {tab!r} 이던 행이 [{tab}] 탭 결과에 없다: {missing} "
+            f"(기준 {len(expected_ids)}건 중) — 정렬 전제(작업신청일 내림차순)가 깨졌을 수도 있다"
+        )
+
+    print(f"[검증] [{tab}] 탭 {len(row_ids)}행 전부 상태 일치 · "
+          f"[{ALL_TAB}] 탭 기준 {len(expected_ids)}건 누락 없음")
 
 
 @allure.title("TC-260907-004 | 신규 서비스 신청 팝업의 입력 항목이 모두 노출된다")
