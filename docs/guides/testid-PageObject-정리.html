@@ -85,7 +85,7 @@ HTML 태그·CSS로 요소를 잡던 방식에서 <code>data-testid</code>로 �
 <li><a href="#s3">3. testid의 단점 — 정답이 아닌 이유</a></li>
 <li><a href="#s4">4. testid 말고 다른 방법들</a></li>
 <li><a href="#s5">5. 우리 화면 실측 결과</a></li>
-<li><a href="#s6">6. PK — 행을 데이터의 신원으로 잡기</a></li>
+<li><a href="#s6">6. 행 식별자(PK) — 행을 데이터의 신원으로 잡기</a></li>
 <li><a href="#s7">7. Page Object — 처음부터 풀어서</a></li>
 <li><a href="#s8">8. 테스트에 testid가 안 보이는 게 왜 좋은가</a></li>
 <li><a href="#s9">9. '요령'이란 무엇인가</a></li>
@@ -243,7 +243,7 @@ page.get_by_test_id("save-button")</code></pre>
 </ul>
 
 <pre><code><span class="hd-good">요청 결과</span>
-&lt;tr data-testid="fs-table__row--10679"&gt;  <span class="cm">← DB 의 PK 가 들어간다</span></code></pre>
+&lt;tr data-testid="fs-table__row--10679"&gt;  <span class="cm">← 그 건의 식별자(API 의 id)가 들어간다</span></code></pre>
 
 <pre><code><span class="cm"># 표시되는 글자가 아니라 데이터의 신원으로 행을 잡는다</span>
 row = page.get_by_test_id(f"fs-table__row--{vehicle_id}")</code></pre>
@@ -366,7 +366,7 @@ dev에 실제 서비스 신청 건이 생성된다. "어차피 유효성 검사�
 
 <hr>
 
-<h2 id="s6"><span class="num">6</span>PK — 행을 데이터의 신원으로 잡기</h2>
+<h2 id="s6"><span class="num">6</span>행 식별자(PK) — 행을 데이터의 신원으로 잡기</h2>
 
 <p>4장 ③에서 "행 식별에는 PK가 담긴 속성을 요청한다"고 했다. 현장 서비스 화면은 실제로
 붙어 있어서, 우리 코드가 그걸 어떻게 쓰는지 여기 모아둔다.</p>
@@ -374,6 +374,7 @@ dev에 실제 서비스 신청 건이 생성된다. "어차피 유효성 검사�
 <h3>PK란 무엇인가</h3>
 
 <p><strong>Primary Key</strong> — 데이터베이스가 한 건을 다른 건과 구별하려고 붙여둔 번호다.
+일반적인 뜻은 이것이고, <strong>우리 화면의 그 숫자가 정말 PK인지는 아래에서 따로 확인한다.</strong>
 서비스 신청 한 건이 만들어질 때 부여되고, 그 뒤로 <strong>바뀌지 않는다.</strong></p>
 
 <pre><code><span class="cm">화면에 보이는 값                     PK</span>
@@ -383,6 +384,43 @@ dev에 실제 서비스 신청 건이 생성된다. "어차피 유효성 검사�
 
 <p>표에 보이는 값은 <strong>여러 행이 같을 수 있고 바뀔 수도 있다.</strong> PK만 유일하고 불변이다.
 그래서 "이 행이 그 행인가"를 물어야 할 때는 PK로 묻는다.</p>
+
+<h3>이게 정말 PK인가 — 확인한 것과 확인 못 한 것</h3>
+
+<p><strong>한동안 확인 없이 "DB의 PK"라고 적어왔다.</strong> 실제로 본 것은 "행마다 붙은 유일한 정수"
+까지였는데, 앞 문서에 그렇게 적힌 것이 그대로 이어져 온 것이었다. 2026-09-08에 목록 조회 API
+응답을 가로채서 대조했다.</p>
+
+<pre><code>GET /admin/fms/v1/onsite-service-v2/list?page=0&amp;size=10&amp;sort=requestedDateTime,desc
+
+{
+  "id": 10682,              <span class="cm">← 화면의 fs-table__row--10682 와 일치 (10/10)</span>
+  "step": "PENDING",        <span class="cm">← 화면에는 "대기" 로 보인다</span>
+  "resellerId": 847,        <span class="cm">← 남의 키(외래 키)는 이렇게 이름이 따로 있다</span>
+  "companyId": 996,
+  "carId": 42778,
+  ...
+}</code></pre>
+
+<table>
+<thead><tr><th></th><th>확인 결과</th></tr></thead>
+<tbody>
+<tr><td><strong>확인됨</strong></td><td>testid 뒤 숫자 = 목록 API 응답의 <code>id</code> 필드. 화면 10행 전부 일치</td></tr>
+<tr><td><strong>확인됨</strong></td><td>같은 객체의 다른 키는 <code>resellerId</code>·<code>carId</code>처럼 이름이 따로다 →
+<code>id</code>는 <strong>그 건 자신의 식별자</strong>다</td></tr>
+<tr><td><strong>확인 못 함</strong></td><td>그 <code>id</code>가 DB 테이블의 <code>PRIMARY KEY</code> 컬럼인지.
+서버 스키마를 본 게 아니다 — 실무상 같지만 <strong>단정할 근거는 한 단계 약하다</strong></td></tr>
+</tbody>
+</table>
+
+<p>그래서 이 문서는 <strong>"서버가 그 건에 부여한 식별자"</strong>까지를 사실로 쓴다. 자동화가 기대는 성질
+(유일하다 · 안 바뀐다 · 화면 텍스트와 무관하다)은 그 수준에서 이미 다 성립한다.</p>
+
+<blockquote class="intro">
+<p><strong>덤으로 알게 된 것</strong> — 정렬이 <code>sort=requestedDateTime,desc</code>(작업신청일 내림차순)로
+서버에 넘어간다. TC-260907-007이 "[전체] 탭의 그 상태 행은 [X] 탭 1페이지 안에 있다"고 볼 때
+쓰는 전제가 이것이다. 추측으로 두고 있던 것이 여기서 확인됐다.</p>
+</blockquote>
 
 <h3>화면 어디에 들어 있나</h3>
 
