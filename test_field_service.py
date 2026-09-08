@@ -121,6 +121,37 @@ def _find_hidden(owner: object, fields: list[tuple[str, str]]) -> list[str]:
     return [label for label, attr in fields if not getattr(owner, attr).is_visible()]
 
 
+def _action_label_problems(fs: FieldServicePage, row_ids: list[str]) -> tuple[list[str], list[tuple[str, str]]]:
+    """각 행의 액션 버튼을 보고 (문제 목록, 관찰된 (상태, 라벨) 목록)을 돌려준다.
+
+    TC 두 개가 같은 검증을 하므로 여기 한 곳에 둔다 - 나뉘어 있으면 한쪽만 고쳐져
+    "같은 것을 두 가지 방법으로 읽는" 상태가 된다 (CLAUDE.md 위양성 장).
+
+    호출 전에 목록이 비어 있지 않은 것과 첫 행이 그려진 것을 확인해야 한다.
+    """
+    statuses = fs.row_statuses()
+    problems: list[str] = []
+    seen: list[tuple[str, str]] = []
+
+    for row_id in row_ids:
+        button = fs.row_action_button(row_id)
+        if not button.is_visible():
+            problems.append(f"{row_id}: 버튼이 없거나 숨겨져 있음")
+            continue
+
+        status = statuses[row_id]
+        label = button.inner_text().strip()
+        seen.append((status, label))
+        expected = ACTION_LABEL_BY_STATUS.get(status)
+
+        if expected and label != expected:
+            problems.append(f"{row_id}: 상태 {status!r} 인데 라벨이 {label!r} (기대 {expected!r})")
+        elif not expected and label not in ACTION_BUTTON_LABELS:
+            problems.append(f"{row_id}: 대응표에 없는 상태 {status!r} 의 라벨이 {label!r}")
+
+    return problems, seen
+
+
 @allure.title("TC-260907-001 | 현장 서비스 화면 진입 시 주요 영역이 모두 노출된다")
 @allure.label("testcase", "TC-260907-001")
 def test_page_areas_visible(fs: FieldServicePage) -> None:
@@ -179,25 +210,8 @@ def test_table_rows_have_action_button(fs: FieldServicePage) -> None:
     )
 
     _expect_rendered(fs.row_action_button(row_ids[0]), f"첫 행({row_ids[0]})의 액션 버튼")
-    statuses = fs.row_statuses()
 
-    broken = []
-    seen = []
-    for row_id in row_ids:
-        button = fs.row_action_button(row_id)
-        if not button.is_visible():
-            broken.append(f"{row_id}: 버튼이 없거나 숨겨져 있음")
-            continue
-
-        status = statuses[row_id]
-        label = button.inner_text().strip()
-        seen.append((status, label))
-        expected = ACTION_LABEL_BY_STATUS.get(status)
-
-        if expected and label != expected:
-            broken.append(f"{row_id}: 상태 {status!r} 인데 라벨이 {label!r} (기대 {expected!r})")
-        elif not expected and label not in ACTION_BUTTON_LABELS:
-            broken.append(f"{row_id}: 미실측 상태 {status!r} 의 라벨이 {label!r}")
+    broken, seen = _action_label_problems(fs, row_ids)
 
     assert not broken, (   # broken 이 빈 리스트([])면 통과 - 문제 행이 하나도 없다는 뜻
         f"[FAIL] 액션 버튼이 정상이 아닌 행: {broken} / 전체 {len(row_ids)}행 "
@@ -205,6 +219,49 @@ def test_table_rows_have_action_button(fs: FieldServicePage) -> None:
     )
     print(f"[검증] {len(row_ids)}개 행 전부 액션 버튼 노출 확인 완료 - 관찰된 (상태, 라벨): "
           f"{sorted(set(seen))}")
+
+
+@pytest.mark.parametrize("tab", list(ACTION_LABEL_BY_STATUS))
+@allure.title("TC-260907-006 | [{tab}] 탭 — 그 상태에 맞는 액션 버튼 라벨이 노출된다")
+@allure.label("testcase", "TC-260907-006")
+def test_action_label_by_status(fs: FieldServicePage, tab: str) -> None:
+    """
+    GIVEN  현장 서비스 화면에 진입한 상태에서
+    WHEN   상태 탭을 하나씩 눌러 결과 행의 액션 버튼을 확인하면
+    THEN   각 행이 자기 상태에 맞는 라벨([수정]/[상세])의 버튼을 노출한다
+
+    TC-260907-003 은 [전체] 탭 1페이지만 보므로, 그날 그 페이지에 안 올라온 상태는
+    검증되지 않는다. 이 TC 가 상태 5개를 매번 돌게 해서 그 구멍을 메운다.
+
+    ★ 버튼을 누르지 않는다 - 탭 클릭은 조회라 데이터를 바꾸지 않는다.
+
+    이 TC 는 "탭 필터가 제대로 걸렸는가"(결과 행이 전부 그 상태인가)는 보지 않는다 -
+    그건 상태 탭 필터 TC 의 몫이다. 여기서는 행이 어떤 상태든 **그 상태에 맞는 라벨**인지만
+    본다. 그래서 필터가 깨져도 이 TC 는 통과할 수 있고, 그게 의도한 범위다.
+    """
+    fs.click_status_tab(tab)
+
+    total = fs.status_tab_count(tab)
+    row_ids = fs.row_ids()
+
+    if total == 0:
+        pytest.skip(f"[{tab}] 탭에 건이 0건 - 검증할 행이 없다 (탭 배지 기준)")
+
+    assert row_ids, (
+        f"[FAIL] [{tab}] 탭 배지는 {total}건인데 조회된 행이 0건이다 - "
+        "데이터가 없는 게 아니라 목록을 못 읽은 것이다\n"
+        f"        {fs.state_summary()}"
+    )
+
+    _expect_rendered(fs.row_action_button(row_ids[0]), f"[{tab}] 탭 첫 행의 액션 버튼")
+
+    broken, seen = _action_label_problems(fs, row_ids)
+
+    assert not broken, (
+        f"[FAIL] [{tab}] 탭에서 액션 버튼이 정상이 아닌 행: {broken} / 전체 {len(row_ids)}행 "
+        f"(상태별 기대 라벨: {ACTION_LABEL_BY_STATUS})"
+    )
+    print(f"[검증] [{tab}] 탭 {len(row_ids)}행 - 관찰된 (상태, 라벨): {sorted(set(seen))}")
 
 
 @allure.title("TC-260907-004 | 신규 서비스 신청 팝업의 입력 항목이 모두 노출된다")

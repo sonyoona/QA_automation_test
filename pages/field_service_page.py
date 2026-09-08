@@ -47,6 +47,17 @@ class FieldServicePage:
             "tab", name=re.compile(rf"^{re.escape(name)}")
         )
 
+    def status_tab_count(self, name: str) -> int:
+        """상태 탭 배지의 건수. 텍스트가 `완료 226` 형태라 숫자만 뽑는다.
+
+        "행이 0건" 일 때 **그 상태에 건이 없는 것**과 **못 읽은 것**을 가르는 근거다.
+        배지가 0 이면 없는 게 맞고, 배지가 있는데 행이 0 이면 읽기가 실패한 것이다.
+        """
+        text = self.status_tab(name).inner_text()
+        match = re.search(r"(\d[\d,]*)", text)
+        assert match, f"[FAIL] [{name}] 탭에서 건수를 읽지 못했다: {text!r}"
+        return int(match.group(1).replace(",", ""))
+
     @property
     def new_service_button(self) -> Locator:
         return self.page.get_by_test_id("fs-status-tabs__new-service-btn")
