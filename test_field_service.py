@@ -9,7 +9,7 @@
 
 import allure
 import pytest
-from playwright.sync_api import Page, expect
+from playwright.sync_api import Locator, Page, expect
 
 from pages.field_service_page import FieldServicePage
 
@@ -19,6 +19,20 @@ pytestmark = allure.feature("차량관리 > 현장 서비스  ·  test_field_ser
 # TC ID 는 배포(예정)일자 접두어를 쓴다 (CLAUDE.md "TC ID 형식과 배포 단위 실행" 참고).
 # TODO: 이 화면의 실제 배포일이 정해지면 260907 을 그 날짜로 일괄 치환할 것.
 #       엑셀 TC 문서가 아직 없어서 번호도 여기서 임시로 001~005 를 붙였다 - 문서가 나오면 맞춘다.
+
+# 결과 행마다 붙는 액션 버튼(fs-table__action-btn--{PK})의 화면 표시 라벨.
+# 라벨이 한 가지가 아니라 행 상태에 따라 갈린다 - 2026-09-08 실측 스크립트로 1페이지 10행
+# (대기 4 · 배정완료 2 · 완료 4)을 확인했다.
+ACTION_LABEL_BY_STATUS = {
+    "대기": "수정",
+    "배정완료": "수정",
+    "완료": "상세",
+}
+
+# 실측된 라벨 전체. 아직 표본이 없는 상태(취소 · 작업불가)는 위 대응을 모르므로
+# "둘 중 하나인가" 까지만 본다 - 규칙을 추측해서 박으면 화면이 아니라 우리 추측을 검증하게 된다.
+# TODO: 취소 · 작업불가 탭에서 라벨을 실측해 ACTION_LABEL_BY_STATUS 를 채운다.
+ACTION_BUTTON_LABELS = set(ACTION_LABEL_BY_STATUS.values())
 
 # 조회 필터 항목 - (화면에 보이는 이름, FieldServicePage 의 속성명)
 # 속성명을 문자열로 두고 getattr 로 꺼내는 이유: 항목이 13개라 하나씩 나열하면 같은 줄이
@@ -71,16 +85,33 @@ def fs(logged_in_page: Page) -> FieldServicePage:
     return page_object
 
 
+def _expect_rendered(locator: Locator, what: str) -> None:
+    """대표 요소 하나를 기다려 렌더가 끝난 것을 확인한다.
+
+    is_visible()·inner_text() 같은 조회 메서드는 재시도가 없어서, 아직 안 그려진 화면을
+    읽으면 전부 "없음" 으로 나온다. 여러 요소를 한 번에 훑기 전에 이걸 먼저 부른다.
+
+    expect 의 기본 실패 메시지는 셀렉터만 보여줘서, 리포트만 봐서는 그게 어느 항목인지
+    알 수 없다 - 나머지 항목은 이름으로 보고되는데 대표 요소 하나만 예외가 된다.
+    그래서 한글 이름을 담아 다시 던진다.
+    """
+    try:
+        expect(locator).to_be_visible()
+    except AssertionError as e:
+        raise AssertionError(
+            f"[FAIL] {what} 이(가) 끝내 노출되지 않아 나머지를 확인할 수 없다"
+        ) from e
+
+
 def _find_hidden(owner: object, fields: list[tuple[str, str]]) -> list[str]:
     """fields 중 화면에 안 보이는 항목의 이름을 모아서 돌려준다.
 
-    첫 항목만 expect 로 기다리고 나머지는 is_visible() 로 즉시 확인하는 이유 -
-    is_visible() 은 재시도를 안 해서 아직 안 그려진 화면을 읽으면 전부 "없음" 으로 나온다.
-    먼저 하나를 expect 로 기다려 렌더가 끝난 걸 확인한 뒤 나머지를 훑으면, 빠진 항목을
-    한 번에 다 모아서 보고할 수 있다 (하나 발견하고 멈추는 것보다 원인 파악이 빠르다).
+    첫 항목만 expect 로 기다리고 나머지는 is_visible() 로 즉시 확인한다 (위
+    `_expect_rendered` 참고). 한 번에 훑으면 빠진 항목을 다 모아서 보고할 수 있다 -
+    하나 발견하고 멈추는 것보다 원인 파악이 빠르다.
     """
     first_label, first_attr = fields[0]
-    expect(getattr(owner, first_attr)).to_be_visible()
+    _expect_rendered(getattr(owner, first_attr), f"첫 항목 '{first_label}'")
     return [label for label, attr in fields if not getattr(owner, attr).is_visible()]
 
 
@@ -114,24 +145,60 @@ def test_filter_fields_visible(fs: FieldServicePage) -> None:
     assert not hidden, f"[FAIL] 노출되지 않은 조회 필터 항목: {hidden}"
 
 
-@allure.title("TC-260907-003 | 결과 행마다 상세 버튼이 하나씩 있다")
+@allure.title("TC-260907-003 | 결과 행마다 액션 버튼([수정]/[상세])이 하나씩 노출된다")
 @allure.label("testcase", "TC-260907-003")
 def test_table_rows_have_action_button(fs: FieldServicePage) -> None:
     """
     GIVEN  현장 서비스 화면에 진입해 결과 목록이 조회된 상태에서
-    WHEN   각 행의 PK 로 대응하는 상세 버튼을 찾으면
-    THEN   모든 행이 자기 PK 를 가진 상세 버튼을 하나씩 가지고 있다
+    WHEN   각 행의 PK 로 대응하는 액션 버튼을 찾으면
+    THEN   모든 행이 자기 PK 를 가진 액션 버튼을 하나씩 노출한다
 
     행 식별을 표시 텍스트가 아니라 testid 안의 PK(fs-table__row--10679)로 한다 -
     같은 날 같은 업체 건이면 행 텍스트가 글자까지 같을 수 있어 텍스트로는 구분이 안 된다.
+
+    ★ 버튼을 누르지 않는다 - [수정] 은 수정 화면으로 들어가는 입구라, 노출·라벨까지만 본다.
+
+    testid 존재만 보면 안 되는 이유 - testid 는 화면에 안 보이는 속성이라 `display:none`
+    이어도 잡히고, 라벨이 통째로 바뀌어도 그대로 통과한다. 그래서 노출과 라벨을 함께 본다.
+
+    라벨은 행 상태에 따라 갈린다 - 실측된 상태(대기·배정완료·완료)는 대응까지 보고,
+    아직 표본이 없는 상태는 실측된 라벨 중 하나인지까지만 본다
+    (ACTION_LABEL_BY_STATUS 주석 참고).
     """
     row_ids = fs.row_ids()
-    assert row_ids, "[FAIL] 조회된 행이 0건입니다 - 목록이 실제로 비었는지, 로딩이 실패한 건지 확인 필요"
+    assert row_ids, (
+        "[FAIL] 조회된 행이 0건입니다 - 그 탭에 건이 없는 건지, 기본 필터가 걸러낸 건지, "
+        "로딩·세션이 실패한 건지 확인 필요\n"
+        f"        {fs.state_summary()}"
+    )
 
-    missing = [row_id for row_id in row_ids if fs.row_action_button(row_id).count() == 0]
+    _expect_rendered(fs.row_action_button(row_ids[0]), f"첫 행({row_ids[0]})의 액션 버튼")
+    statuses = fs.row_statuses()
 
-    assert not missing, f"[FAIL] 상세 버튼이 없는 행(PK): {missing} / 전체 {len(row_ids)}행"
-    print(f"[검증] {len(row_ids)}개 행 전부 상세 버튼 확인 완료")
+    broken = []
+    seen = []
+    for row_id in row_ids:
+        button = fs.row_action_button(row_id)
+        if not button.is_visible():
+            broken.append(f"{row_id}: 버튼이 없거나 숨겨져 있음")
+            continue
+
+        status = statuses[row_id]
+        label = button.inner_text().strip()
+        seen.append((status, label))
+        expected = ACTION_LABEL_BY_STATUS.get(status)
+
+        if expected and label != expected:
+            broken.append(f"{row_id}: 상태 {status!r} 인데 라벨이 {label!r} (기대 {expected!r})")
+        elif not expected and label not in ACTION_BUTTON_LABELS:
+            broken.append(f"{row_id}: 미실측 상태 {status!r} 의 라벨이 {label!r}")
+
+    assert not broken, (
+        f"[FAIL] 액션 버튼이 정상이 아닌 행: {broken} / 전체 {len(row_ids)}행 "
+        f"(상태별 기대 라벨: {ACTION_LABEL_BY_STATUS})"
+    )
+    print(f"[검증] {len(row_ids)}개 행 전부 액션 버튼 노출 확인 완료 - 관찰된 (상태, 라벨): "
+          f"{sorted(set(seen))}")
 
 
 @allure.title("TC-260907-004 | 신규 서비스 신청 팝업의 입력 항목이 모두 노출된다")

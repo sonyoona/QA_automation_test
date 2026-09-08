@@ -117,7 +117,39 @@ class FieldServicePage:
         """PK 로 특정 행 하나를 잡는다 - 화면 텍스트가 겹쳐도 안전하다."""
         return self.page.get_by_test_id(f"fs-table__row--{service_id}")
 
+    def column_index(self, header: str) -> int:
+        """헤더 텍스트로 컬럼 위치를 찾는다.
+
+        인덱스를 코드에 박으면 프론트가 컬럼을 하나 끼울 때 **예외가 아니라 빈 문자열**이
+        읽혀서 조용히 지나간다. 헤더로 찾으면 "그 헤더가 없다" 는 분명한 실패가 된다.
+
+        정렬 가능한 헤더는 아이콘 텍스트가 붙어 오므로(`작업신청일\\nexpand_more`) 첫 줄만 쓴다.
+        2026-09-08 실측 - 헤더 17개, `상태`(0) … `액션`(16).
+        """
+        headers = [
+            text.split("\n")[0].strip()
+            for text in self.table_root.locator("th").all_inner_texts()
+        ]
+        assert header in headers, f"[FAIL] 표 헤더에 {header!r} 이 없다: {headers}"
+        return headers.index(header)
+
+    def row_statuses(self) -> dict[str, str]:
+        """행 PK -> 상태 컬럼 값.
+
+        상태를 읽는 방법을 여기 하나만 두는 이유는 `row_ids()` 와 같다 - TC 마다 다른
+        방법으로 읽으면 그중 하나가 위양성이 되어도 셀렉터 이름은 멀쩡해 아무도 못 잡는다.
+        """
+        index = self.column_index("상태")
+        return {
+            service_id: self.row(service_id).locator("td").nth(index).inner_text().strip()
+            for service_id in self.row_ids()
+        }
+
     def row_action_button(self, service_id: str) -> Locator:
+        """행의 액션 컬럼에 있는 [수정] 버튼 (2026-09-08 라벨 실측).
+
+        ★ 누르지 않는다 - 수정 화면으로 들어가는 입구라, 노출·라벨 확인까지만 쓴다.
+        """
         return self.page.get_by_test_id(f"fs-table__action-btn--{service_id}")
 
     # ------------------------------------------------------------------
@@ -154,7 +186,38 @@ class FieldServicePage:
         """
         expect(self.root).to_be_visible()
         expect(self.table_root).to_be_visible()
+        self.wait_status_counts()
         self.wait_table_settled()
+
+    @allure.step("상태 탭 건수 배지가 채워질 때까지 대기")
+    def wait_status_counts(self, timeout_ms: int = 15_000) -> None:
+        """상태 탭 배지(`전체 591`)에 숫자가 들어올 때까지 기다린다.
+
+        배지는 서버 응답이 와야 채워지므로 **데이터가 도착했다는 유일한 신호**다.
+        이걸 안 기다리면 데이터가 안 온 화면을 "결과 0건" 으로 오독한다 - 2026-09-08 실측:
+        목록이 591건인 화면인데 표에 `데이터가 없습니다` 가 떠 있었고, 그때 배지도 숫자
+        없이 `'전체\\n대기\\n…'` 이었다. `wait_table_settled` 는 그 빈 상태를 "다 그려졌다"
+        로 인정해서 통과시켰다 - 빈 결과가 정상인 검색도 있어야 하기 때문이다.
+
+        배지를 먼저 보면 그 창이 닫힌다. 데이터가 끝내 안 오면 여기서 실패하는데, 그게 맞다 -
+        조용히 0 건으로 통과하는 것보다 "도착 안 함" 이라고 끊는 편이 낫다.
+        """
+        try:
+            self.page.wait_for_function(
+                """(selector) => {
+                    const el = document.querySelector(selector);
+                    return !!el && /\\d/.test(el.innerText);
+                }""",
+                arg='[data-testid="fs-status-tabs__tabs"]',
+                polling=300,
+                timeout=timeout_ms,
+            )
+        except Exception as e:
+            raise AssertionError(
+                "[FAIL] 상태 탭 건수 배지가 끝내 채워지지 않았다 - 데이터가 도착하지 않은 "
+                "화면이라 결과를 읽을 수 없다 (세션 끊김·API 실패 의심)\n"
+                f"        {self.state_summary()}"
+            ) from e
 
     @allure.step("결과 목록이 안정될 때까지 대기")
     def wait_table_settled(self, timeout_ms: int = 30_000) -> None:
@@ -201,6 +264,24 @@ class FieldServicePage:
         행이 0 개인 것만으로 판정하면 안 된다 - 아직 그리는 중일 때도 0 개다.
         """
         return self.EMPTY_TEXT in self.table_root.inner_text()
+
+    def state_summary(self) -> str:
+        """0 건일 때 원인을 가르기 위한 화면 상태 요약. 실패 메시지에 담는다.
+
+        "조회된 행이 0건" 이라는 말만으로는 원인을 셋 중 하나로 좁힐 수 없다 -
+        ① 그 탭에 실제로 건이 없다 ② 기본 필터(날짜 범위 등)가 최근 건을 걸러낸다
+        ③ 로딩·세션이 실패해 안 그려졌다. 셋의 겉모습이 같아서, 값을 함께 남기지 않으면
+        리포트만 보고는 판별이 불가능하다.
+
+        상태 탭 텍스트에는 탭별 건수 배지가 들어 있어 ①과 ②·③을 가르는 근거가 된다 -
+        모든 탭이 0 이면 데이터가 없는 것이고, 배지에 숫자가 있는데 목록만 비었으면
+        필터나 로딩 쪽이다.
+        """
+        return (
+            f"빈결과안내={self.is_empty_result()} / "
+            f"상태탭={self.status_tabs.inner_text()!r} / "
+            f"표={self.table_root.inner_text()[:200]!r}"
+        )
 
     @allure.step("차량번호 {plate} 로 검색")
     def search_by_plate(self, plate: str) -> None:
