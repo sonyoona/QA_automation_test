@@ -121,7 +121,7 @@ TC-059~066은 "리셀러·인수 업체 파트너 조합에 따라 업체 이관
 - 결과 행마다 자기 PK를 가진 상세 버튼이 있는지 확인
 - 신규 서비스 신청 팝업의 입력 15개 항목·하단 버튼 노출 및 닫기 복귀 확인
 
-이 화면만 프론트에서 `data-testid`를 붙여둔 시범 페이지라(목록 40개 + 팝업 19개), 셀렉터를 `pages/field_service_page.py` 한 곳에 모으고 테스트 본문에는 testid가 나오지 않게 했습니다. 이 저장소에서 처음으로 Page Object를 분리한 화면입니다. 자세한 내용은 `docs/notes/code-notes/현장서비스-테스트-노트.md` 참고.
+이 화면만 프론트에서 `data-testid`를 붙여둔 시범 페이지라(목록 40개 + 팝업 19개), 셀렉터를 `pages/field_service_page.py` 한 곳에 모으고 테스트 본문에는 testid가 나오지 않게 했습니다. 이 저장소에서 처음으로 Page Object를 분리한 화면입니다. 자세한 내용은 `docs/notes/code-notes/현장서비스-테스트-노트.md` 참고 — 코드를 한 줄씩 읽는 설명은 `docs/notes/code-notes/현장서비스-코드-한줄씩.md` 에 따로 있습니다.
 
 <br>
 

@@ -5,7 +5,8 @@
 #   팝업 검증은 "필드가 노출되는가 / 버튼이 있는가" 까지만 한다.
 #
 # 셀렉터(testid)는 이 파일에 나오지 않는다 - 전부 pages/field_service_page.py 가 안다.
-# 자세한 설명은 docs/notes/code-notes/현장서비스-테스트-노트.md 참고
+# 왜 그렇게 했는지는 docs/notes/code-notes/현장서비스-테스트-노트.md 참고
+# 각 줄이 무엇을 하는지는 docs/notes/code-notes/현장서비스-코드-한줄씩.md 참고
 
 import allure
 import pytest
