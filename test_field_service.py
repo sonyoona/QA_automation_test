@@ -193,7 +193,7 @@ def test_table_rows_have_action_button(fs: FieldServicePage) -> None:
         elif not expected and label not in ACTION_BUTTON_LABELS:
             broken.append(f"{row_id}: 미실측 상태 {status!r} 의 라벨이 {label!r}")
 
-    assert not broken, (   #broken이 [] 빈 행일때
+    assert not broken, (   # broken 이 빈 리스트([])면 통과 - 문제 행이 하나도 없다는 뜻
         f"[FAIL] 액션 버튼이 정상이 아닌 행: {broken} / 전체 {len(row_ids)}행 "
         f"(상태별 기대 라벨: {ACTION_LABEL_BY_STATUS})"
     )
