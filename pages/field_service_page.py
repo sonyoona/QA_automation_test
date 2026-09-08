@@ -459,9 +459,14 @@ class NewServicePopup:
 
     @property
     def request_rows(self) -> Locator:
-        """담긴 신청 목록의 행들.
+        """팝업 안 "담긴 신청 목록" 의 행들.
 
-        TODO: 목록에 1건 담은 뒤 실제 testid 를 확인할 것 (아직 미실측).
+        이 팝업은 [목록에 추가] 로 여러 건을 담아 [신청 완료] 로 한꺼번에 제출하는 구조다.
+        팝업을 막 열었을 때는 목록이 비어 있어 **이 행 요소가 DOM 에 없다** - 그래서 아직
+        실제 testid 를 못 봤다. 아래 이름은 다른 testid 의 작명 규칙에서 유추한 것이다.
+
+        TODO: [목록에 추가] 로 1건 담아 행을 만든 뒤 실제 이름을 확인할 것.
+              그때 네트워크도 같이 보면 "팝업 안에서만 끝나는 동작" 인지 함께 확인된다.
         """
         return self.dialog.locator('[data-testid^="fs-new__request-list-row--"]')
 
