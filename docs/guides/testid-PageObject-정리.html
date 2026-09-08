@@ -520,6 +520,35 @@ missing = [i for i in expected_ids if i not in row_ids]           <span class="c
 
 [FAIL] 액션 버튼이 정상이 아닌 행: ["10653: 상태 '취소' 인데 라벨이 '상세' (기대 '수정')"]</span></code></pre>
 
+<h3>숫자가 붙었다고 다 식별자는 아니다</h3>
+
+<p>같은 화면 안에서도 자리마다 다르다. 신규 신청 팝업의 "담긴 목록" 행에도 숫자가 붙는데,
+그건 <strong>순번</strong>이다.</p>
+
+<pre><code>fs-table__row--10679            <span class="cm">← 표: 서버가 준 그 건의 id</span>
+fs-new__request-list-row--0     <span class="cm">← 팝업 목록: 0 부터 세는 순번</span>
+fs-new__request-list-row--1</code></pre>
+
+<p>이유는 분명하다 — 그 목록은 <strong>[신청 완료]를 누르기 전</strong>의 임시 상태다.
+아직 서버에 없는 건이니 id가 있을 수 없고, 붙을 수 있는 값은 순번뿐이다.</p>
+
+<p>차이는 <strong>중간 행을 지웠을 때</strong> 드러난다. 표의 <code>10679</code>는 그대로지만,
+팝업 목록의 <code>1</code>번은 앞 행이 사라지면 <code>0</code>번이 된다.
+<strong>신원이 아니라 위치</strong>다.</p>
+
+<table>
+<thead><tr><th></th><th>표 행 <code>--10679</code></th><th>팝업 목록 행 <code>--0</code></th></tr></thead>
+<tbody>
+<tr><td>개수 세기</td><td>가능</td><td>가능</td></tr>
+<tr><td>"N번째" 가리키기 (같은 렌더 안)</td><td>가능</td><td>가능</td></tr>
+<tr><td>조작 전후로 같은 행 다시 찾기</td><td><strong>가능</strong></td><td><strong>불가</strong> — 번호가 당겨진다</td></tr>
+<tr><td>다른 화면·탭과 대조하기</td><td><strong>가능</strong></td><td><strong>불가</strong></td></tr>
+</tbody>
+</table>
+
+<p>CLAUDE.md "행 식별" 장의 순위로 보면 앞은 1순위(PK가 담긴 속성), 뒤는 4순위(인덱스 —
+같은 렌더 안에서만)다. <strong>testid 뒤에 숫자가 있는지가 아니라 그 숫자가 무엇인지를 봐야 한다.</strong></p>
+
 <h3>주의할 것</h3>
 
 <table>
