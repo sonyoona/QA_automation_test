@@ -256,8 +256,12 @@ TC를 쓴 뒤 반드시 자문한다:
 세부 구현(URL 판별 방식, 접두어 형식 등)은 실측 시 화면·환경을 직접 보고 확정하며,
 확정되면 이 섹션과 관련 code-notes를 함께 갱신한다.
 
-**① 실행 환경 안전장치**
-- mutating 테스트는 명시적 옵트인 없이는 실행되지 않는다 — `.env`에 `ALLOW_MUTATING_TESTS=true`가 없으면 mutating 테스트가 setup 단계에서 스스로 skip한다.
+**① 실행 환경 안전장치 — 2026-09-09 에 옵트인 게이트를 넣었다**
+- mutating 테스트는 명시적 옵트인 없이는 실행되지 않는다 — `.env`에 `ALLOW_MUTATING_TESTS=true`가 없으면 mutating 테스트가 setup 단계에서 스스로 skip한다. `conftest.py` 의 `_mutating_gate`(autouse fixture)가 담당한다.
+- 확인: `pytest -m mutating -v` → **8 skipped in 0.87s** (브라우저도 로그인도 일어나지 않는다 — 게이트가 `logged_in_page` 보다 먼저 돌기 때문).
+- **마커와 게이트는 하는 일이 다르다.** 마커는 "고를 수 있게", 게이트는 "모르고 돌리는 것을 막게". `-m "not mutating"` 이 안 붙는 경로(`pytest -v` · `pytest --lf` · 파일 지정 실행 · PyCharm 실행 버튼 · 새로 온 사람)가 많아서 마커만으로는 못 막았다.
+- `.env` 는 `.gitignore` 에 있어 커밋되지 않는다 — 그래서 남의 컴퓨터·CI 에는 값이 없고 **기본이 안전한 쪽**으로 유지된다. 이게 옵트인의 요점이다.
+- 켜고 나면 **끝나고 다시 지운다.** 켜둔 채 잊으면 게이트가 없는 것과 같아진다.
 - `STAFF_URL`이 운영(prod) 도메인인지 구분할 수 있는 근거가 지금은 없다(`.env.example`엔 dev/prod 구분 값이 없음). **운영 도메인 패턴이 확인되는 즉시**, 위 옵트인과 별개로 "운영 URL이면 mutating 테스트를 무조건 차단"하는 하드 가드를 추가한다.
 
 **② 테스트 데이터 정리(cleanup) 기준**
@@ -269,8 +273,8 @@ TC를 쓴 뒤 반드시 자문한다:
 **③ 테스트 태그/실행 범위 — 여기까지는 2026-09-09 에 했다**
 - `pytest.ini` 에 `mutating` 마커를 등록하고, `test_vehicle_company_transfer.py` 의 **TC-059~066 여덟 건**에 `@pytest.mark.mutating` 을 붙였다. 저장에 성공하는 넷뿐 아니라 차단되는 넷도 **저장을 누르는 것까지는 같으므로** 함께 붙였다.
 - 확인: `pytest -m "not mutating" --collect-only -q` → **61/69** · `-m mutating` → **8/69**.
-- 기본 실행(`pytest -v`)은 marker 유무와 무관하게 전부 돈다. 안전한 것만 돌리려면 `pytest -m "not mutating" -v`, mutating만 돌리려면 `pytest -m mutating -v`.
-- **마커는 "고를 수 있게" 만든 것이지 "모르고 돌리는 것을 막는" 장치가 아니다.** ①의 옵트인 게이트가 아직 없어서 `pytest -v` 는 여전히 그 8건을 같이 돌린다. 그 전까지는 사람이 `-m "not mutating"` 을 붙이는 것에 의존한다.
+- 기본 실행(`pytest -v`)은 69건을 모으지만 mutating 8건은 게이트가 skip 한다(61 실행 + 8 skip). skip 조차 안 보이게 하려면 `pytest -m "not mutating" -v`, mutating 만 돌리려면 `.env` 를 켠 뒤 `pytest -m mutating -v`.
+- **마커는 "고를 수 있게" 만든 것이지 "모르고 돌리는 것을 막는" 장치가 아니다.** 그쪽은 ①의 옵트인 게이트가 맡는다(2026-09-09 에 넣었다). 그래서 이제 `pytest -v` 는 그 8건을 skip 한다 — `-m "not mutating"` 은 "리포트에서 아예 빼고 싶을 때" 쓰는 것이지 안전을 위해 필요한 것이 아니다.
 - **등록은 사용 조건이 아니다.** `@pytest.mark.아무이름` 은 등록 없이도 동작한다(`conftest` 가 붙이는 `tc_260907` 이 그 증거 — 등록된 적 없는데 `-m tc_260907` 로 15건이 골라진다). `pytest.ini` 에 적는 이유는 ① 경고를 없애고 ② 나중에 `--strict-markers` 를 켤 수 있게 하기 위함이다.
 - **`--strict-markers` 는 아직 안 켰다.** 켜면 미등록 마커가 경고가 아니라 에러가 되는데, `conftest` 훅이 붙이는 `tc_*` 는 배포일마다 새로 생겨 미리 등록할 수 없어 **INTERNALERROR 로 죽는다**(2026-09-09 실측). 켜려면 그 훅에서 `add_marker` 앞에 `item.config.addinivalue_line("markers", f"tc_{date}: …")` 를 같이 넣어야 하고, 그 조합이면 통과하는 것까지 확인했다. 지금 안 켠 이유는 손으로 붙이는 마커가 `mutating` 하나뿐이라 오타가 날 자리가 좁기 때문이다 — **`mutating` 마커가 늘어나면 켜는 쪽이 맞다.** 그 오타는 테스트를 빨갛게 만드는 게 아니라 **`-m "not mutating"` 필터를 빠져나가게** 만들어서, 위양성과 같은 방향으로 조용히 틀린다.
 - 그 대신 `tc_*` 경고만 `filterwarnings` 로 껐다(`ignore:Unknown pytest.mark.tc_:…`). 메시지 앞부분 매칭이라 `mutatng` 같은 진짜 오타는 여전히 경고가 뜬다.

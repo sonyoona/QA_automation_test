@@ -19,6 +19,48 @@ AUTH_STATE_PATH = "auth.json"
 OTP_WAIT_SEC = int(os.getenv("OTP_WAIT_SEC", "180"))
 
 
+def _mutating_allowed() -> bool:
+    """`.env` 에 `ALLOW_MUTATING_TESTS=true` 가 있을 때만 참.
+
+    값을 읽을 때마다 확인하는 이유 - 모듈 상수로 굳혀두면 실행 중에 바꿔도 안 먹혀서
+    "왜 아직 skip 되지" 를 한참 찾게 된다.
+    """
+    return os.getenv("ALLOW_MUTATING_TESTS", "").strip().lower() == "true"
+
+
+@pytest.fixture(autouse=True)
+def _mutating_gate(request: pytest.FixtureRequest) -> None:
+    """`@pytest.mark.mutating` 이 붙은 테스트는 명시적으로 켜야만 돈다 (옵트인).
+
+    **마커만으로는 부족하기 때문에 있다.** 마커는 "고를 수 있게" 해주는 것이지
+    "모르고 돌리는 것을 막는" 장치가 아니다. `-m "not mutating"` 이 안 붙는 경로가
+    이만큼 있고, 전부 dev 데이터를 실제로 바꾼다.
+
+        pytest -v · pytest --lf · pytest test_vehicle_company_transfer.py
+        PyCharm 의 실행 버튼 · 새로 온 사람 · 6개월 뒤의 나
+
+    그래서 기본값을 "안 함" 으로 두고, `.env` 에 `ALLOW_MUTATING_TESTS=true` 를 적은
+    사람만 돌 수 있게 한다. `.env` 는 `.gitignore` 에 있어서 커밋되지 않으므로
+    남의 컴퓨터·CI 에는 그 값이 없다 - 기본이 안전한 쪽으로 유지된다.
+
+    `autouse=True` 라 모든 테스트가 이걸 거치지만, 마커가 없으면 즉시 돌려보내므로
+    읽기 전용 TC 에는 비용이 없다. 이 fixture 는 의존이 없어서 `logged_in_page` 보다
+    **먼저** 돌고, 그래서 차단될 때는 브라우저가 아예 안 뜬다.
+
+    ★ 아직 없는 것 - 운영(prod) URL 하드 가드. 옵트인은 "실수로 도는 것" 은 막지만,
+      `ALLOW_MUTATING_TESTS=true` 를 켜둔 채 `STAFF_URL` 만 운영으로 바꾼 경우는
+      못 막는다. 운영 도메인 패턴이 확인되면 여기에 무조건 차단을 한 겹 더 건다
+      (CLAUDE.md `변경성(mutating) 테스트 준비` ① 참고).
+    """
+    if request.node.get_closest_marker("mutating") is None:
+        return
+    if not _mutating_allowed():
+        pytest.skip(
+            "데이터를 바꾸는 TC 라 기본적으로 실행하지 않는다 - "
+            "돌리려면 .env 에 ALLOW_MUTATING_TESTS=true 를 적는다"
+        )
+
+
 def _auth_state_is_fresh(path: str) -> bool:
     """auth.json이 있고, 안에 든 쿠키가 아직 만료 전인지 확인."""
     if not os.path.exists(path):
