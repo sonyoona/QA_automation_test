@@ -19,12 +19,33 @@ AUTH_STATE_PATH = "auth.json"
 OTP_WAIT_SEC = int(os.getenv("OTP_WAIT_SEC", "180"))
 
 
-def _mutating_allowed() -> bool:
-    """`.env` 에 `ALLOW_MUTATING_TESTS=true` 가 있을 때만 참.
+def pytest_addoption(parser: pytest.Parser) -> None:
+    """데이터를 바꾸는 테스트를 **이번 실행에서만** 허용하는 플래그를 추가한다."""
+    parser.addoption(
+        "--allow-mutating",
+        action="store_true",
+        default=False,
+        help="데이터를 바꾸는 테스트(@pytest.mark.mutating)를 이번 실행에서만 허용한다",
+    )
 
-    값을 읽을 때마다 확인하는 이유 - 모듈 상수로 굳혀두면 실행 중에 바꿔도 안 먹혀서
-    "왜 아직 skip 되지" 를 한참 찾게 된다.
+
+def _mutating_allowed(config: pytest.Config) -> bool:
+    """데이터를 바꾸는 테스트를 돌려도 되는가. 켜는 방법이 둘이다.
+
+        pytest -m mutating --allow-mutating -v     <- 권장. 이번 실행에만 산다
+        .env 또는 셸에 ALLOW_MUTATING_TESTS=true   <- CI·반복 실행용
+
+    **플래그를 권장하는 이유는 "끄는 것을 잊을 수가 없어서"** 다. `.env` 에 적으면
+    지울 때까지 남고, 셸 환경변수는 그 터미널 탭이 닫힐 때까지 남는다. 둘 다 켜둔 채
+    잊으면 게이트가 없는 것과 같아진다. 플래그는 그 명령 한 줄에만 살고, 무엇을
+    허용했는지가 명령과 리포트에 그대로 보인다.
+
+    환경변수를 읽을 때마다 확인하는 이유 - 모듈 상수로 굳혀두면 실행 중에 바꿔도
+    안 먹혀서 "왜 아직 skip 되지" 를 한참 찾게 된다. `load_dotenv()` 는 기본이
+    `override=False` 라 **셸에 이미 있는 값이 `.env` 를 이긴다** (2026-09-09 실측).
     """
+    if config.getoption("--allow-mutating"):
+        return True
     return os.getenv("ALLOW_MUTATING_TESTS", "").strip().lower() == "true"
 
 
@@ -39,25 +60,24 @@ def _mutating_gate(request: pytest.FixtureRequest) -> None:
         pytest -v · pytest --lf · pytest test_vehicle_company_transfer.py
         PyCharm 의 실행 버튼 · 새로 온 사람 · 6개월 뒤의 나
 
-    그래서 기본값을 "안 함" 으로 두고, `.env` 에 `ALLOW_MUTATING_TESTS=true` 를 적은
-    사람만 돌 수 있게 한다. `.env` 는 `.gitignore` 에 있어서 커밋되지 않으므로
-    남의 컴퓨터·CI 에는 그 값이 없다 - 기본이 안전한 쪽으로 유지된다.
+    그래서 기본값을 "안 함" 으로 두고, 켠 사람만 돌 수 있게 한다. 켜는 방법과
+    각각이 얼마나 오래 사는지는 `_mutating_allowed()` 참고 - **플래그를 권장한다.**
 
     `autouse=True` 라 모든 테스트가 이걸 거치지만, 마커가 없으면 즉시 돌려보내므로
     읽기 전용 TC 에는 비용이 없다. 이 fixture 는 의존이 없어서 `logged_in_page` 보다
     **먼저** 돌고, 그래서 차단될 때는 브라우저가 아예 안 뜬다.
 
     ★ 아직 없는 것 - 운영(prod) URL 하드 가드. 옵트인은 "실수로 도는 것" 은 막지만,
-      `ALLOW_MUTATING_TESTS=true` 를 켜둔 채 `STAFF_URL` 만 운영으로 바꾼 경우는
-      못 막는다. 운영 도메인 패턴이 확인되면 여기에 무조건 차단을 한 겹 더 건다
+      허용을 켜둔 채 `STAFF_URL` 만 운영으로 바꾼 경우는 못 막는다. 운영 도메인
+      패턴이 확인되면 여기에 무조건 차단을 한 겹 더 건다
       (CLAUDE.md `변경성(mutating) 테스트 준비` ① 참고).
     """
     if request.node.get_closest_marker("mutating") is None:
         return
-    if not _mutating_allowed():
+    if not _mutating_allowed(request.config):
         pytest.skip(
             "데이터를 바꾸는 TC 라 기본적으로 실행하지 않는다 - "
-            "돌리려면 .env 에 ALLOW_MUTATING_TESTS=true 를 적는다"
+            "돌리려면 --allow-mutating 을 붙인다"
         )
 
 

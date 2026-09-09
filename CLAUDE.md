@@ -247,7 +247,7 @@ TC를 쓴 뒤 반드시 자문한다:
 위 장에 적은 대로 TC-059~066 이 이미 저장을 실행하고 있었는데 아무 장치도 없었다.
 **①(옵트인 게이트)·②(원복을 teardown 으로)·③(마커) 을 그날 전부 했다.**
 지금 `pytest -v` 를 그냥 돌리면 그 8건은 **게이트가 skip 한다**(61 실행 + 8 skip).
-돌리려면 `.env` 에 `ALLOW_MUTATING_TESTS=true` 를 적어야 한다.
+돌리려면 명령에 `--allow-mutating` 을 붙인다.
 
 **남은 것은 운영(prod) 하드 가드 하나다** — ① 참고. 운영 도메인 패턴을 아직 몰라서 못 만들었다.
 
@@ -259,11 +259,20 @@ TC를 쓴 뒤 반드시 자문한다:
 확정되면 이 섹션과 관련 code-notes를 함께 갱신한다.
 
 **① 실행 환경 안전장치 — 2026-09-09 에 옵트인 게이트를 넣었다**
-- mutating 테스트는 명시적 옵트인 없이는 실행되지 않는다 — `.env`에 `ALLOW_MUTATING_TESTS=true`가 없으면 mutating 테스트가 setup 단계에서 스스로 skip한다. `conftest.py` 의 `_mutating_gate`(autouse fixture)가 담당한다.
-- 확인: `pytest -m mutating -v` → **8 skipped in 0.87s** (브라우저도 로그인도 일어나지 않는다 — 게이트가 `logged_in_page` 보다 먼저 돌기 때문).
+- mutating 테스트는 명시적 옵트인 없이는 실행되지 않는다 — `conftest.py` 의 `_mutating_gate`(autouse fixture)가 setup 단계에서 스스로 skip 한다.
+- **켜는 방법은 둘이고, 차이는 "얼마나 오래 사는가" 다. 플래그를 쓴다.**
+
+  | 방법 | 사는 범위 | 쓸 자리 |
+  |---|---|---|
+  | `pytest --allow-mutating` | **그 명령 한 줄** | 평소 (권장) |
+  | 셸 `$env:ALLOW_MUTATING_TESTS="true"` | 그 터미널 탭 | 여러 번 반복해서 돌릴 때 |
+  | `.env` 에 `ALLOW_MUTATING_TESTS=true` | **지울 때까지** | CI 등 매번 붙이기 어려운 자리 |
+
+  뒤로 갈수록 **끄는 것을 잊을 위험**이 커진다. 켜둔 채 잊으면 게이트가 없는 것과 같다. `load_dotenv()` 는 `override=False` 라 셸 값이 `.env` 를 이긴다(2026-09-09 실측).
+- **플래그 오타는 조용히 통과하지 않는다** — `--allow-mutatng` 은 pytest 가 `unrecognized arguments` 로 즉시 끊는다. `.env` 쪽 오타는 그냥 "안 켜짐" 이 되어 skip 으로 나타난다. 둘 다 안전한 방향으로 틀린다.
+- 확인(2026-09-09): 플래그 없이 `pytest -m mutating -v` → **8 skipped**(브라우저도 로그인도 일어나지 않는다 — 게이트가 `logged_in_page` 보다 먼저 돌기 때문). `--allow-mutating` 을 붙이면 통과한다.
 - **마커와 게이트는 하는 일이 다르다.** 마커는 "고를 수 있게", 게이트는 "모르고 돌리는 것을 막게". `-m "not mutating"` 이 안 붙는 경로(`pytest -v` · `pytest --lf` · 파일 지정 실행 · PyCharm 실행 버튼 · 새로 온 사람)가 많아서 마커만으로는 못 막았다.
 - `.env` 는 `.gitignore` 에 있어 커밋되지 않는다 — 그래서 남의 컴퓨터·CI 에는 값이 없고 **기본이 안전한 쪽**으로 유지된다. 이게 옵트인의 요점이다.
-- 켜고 나면 **끝나고 다시 지운다.** 켜둔 채 잊으면 게이트가 없는 것과 같아진다.
 - `STAFF_URL`이 운영(prod) 도메인인지 구분할 수 있는 근거가 지금은 없다(`.env.example`엔 dev/prod 구분 값이 없음). **운영 도메인 패턴이 확인되는 즉시**, 위 옵트인과 별개로 "운영 URL이면 mutating 테스트를 무조건 차단"하는 하드 가드를 추가한다.
 
 **② 테스트 데이터 정리(cleanup) 기준**
