@@ -90,12 +90,26 @@ def _select_any_branch(page: Page, retries: int = 3) -> None:
 @allure.step("[수정] 저장 + 변경 확인 팝업 [OK] 클릭")
 def _click_save_and_confirm(page: Page) -> None:
     """[수정] 버튼을 누르고, 뒤이어 뜨는 "수정작업을 변경할까요?" 확인 팝업의 [OK]까지 클릭한다.
-    이 다음은 이관 성공/실패에 따라 뜨는 팝업이 갈리므로, 그 뒤 처리는 호출부가 담당한다."""
+    이 다음은 이관 성공/실패에 따라 뜨는 팝업이 갈리므로, 그 뒤 처리는 호출부가 담당한다.
+
+    ★ [수정]을 누르면 확인 팝업 대신 **유효성 검사 팝업**이 뜰 수 있다 - 2026-09-09 실측에서
+      TC-066 이 "지점을 선택해주세요." 를 만났다. 그 팝업에도 [OK] 가 있어서, 예전에는 그걸
+      확인 팝업으로 착각해 눌러버리고 **8 초 뒤 엉뚱한 곳**("차단 알럿이 안 뜬다")에서 실패했다.
+      원인이 지점인데 메시지는 이관 정책을 가리키니 매번 헛다리를 짚게 된다. 그래서 팝업 제목을
+      먼저 읽고, 유효성 팝업이면 그 자리에서 그 문구 그대로 실패시킨다.
+    """
     save_button = page.locator('button[id="2"]', has_text="수정")
     save_button.click()
 
     ok_button = page.get_by_role("button", name="OK", exact=True)
     expect(ok_button).to_be_visible(timeout=5_000)
+
+    heading = page.get_by_role("dialog").get_by_role("heading").first.inner_text()
+    if "선택해주세요" in heading or "입력해주세요" in heading:
+        raise AssertionError(
+            f"[FAIL] 저장이 유효성 검사에서 막혔다: {heading!r} - "
+            "이관 정책과 무관하며, 저장 요청은 서버에 나가지 않았다"
+        )
     ok_button.click()
 
 
