@@ -3,6 +3,7 @@ import os
 import re
 import time
 from typing import Generator
+from urllib.parse import urlparse
 
 import allure
 import pytest
@@ -17,6 +18,23 @@ ADMIN_PASSWORD = os.getenv("STAFF_ADMIN_PASSWORD")
 
 AUTH_STATE_PATH = "auth.json"
 OTP_WAIT_SEC = int(os.getenv("OTP_WAIT_SEC", "180"))
+
+# 데이터를 바꾸는 테스트를 돌려도 되는 곳. **여기 없는 주소면 무조건 차단한다.**
+#
+# 화이트리스트인 이유 - "운영이면 막는다" 로 만들려면 운영 도메인이 어떻게 생겼는지
+# 알아야 하는데 지금 모른다. 추측해서 적으면 두 방향으로 틀린다. 너무 좁으면(`"prod" in url`)
+# 운영이 그렇게 안 생겼을 때 **안 막히고**, 너무 넓으면 dev 까지 막혀 못 돌린다.
+# 뒤집어서 "아는 곳이 아니면 막는다" 로 두면 **운영 주소를 몰라도 되고**, 나중에 스테이징이나
+# 새 환경이 생겨도 처음 보는 주소는 자동으로 막힌다. 옵트인 게이트와 같은 원칙이다 -
+# 기본값을 안전한 쪽으로 두고, 틀리더라도 "안 돌아감" 쪽으로 틀리게 한다.
+#
+# dev 주소가 바뀌면 여기를 고쳐야 한다. 안 고치면 mutating 이 안 돌 뿐이라 안전하다.
+MUTATING_ALLOWED_HOSTS = {"fms-dev-staff.carbom.co.kr"}
+
+
+def _staff_host() -> str:
+    """`STAFF_URL` 의 호스트명. 못 읽으면 빈 문자열 - 그러면 화이트리스트에 없으니 차단된다."""
+    return (urlparse(STAFF_URL or "").hostname or "").lower()
 
 
 def pytest_addoption(parser: pytest.Parser) -> None:
@@ -67,17 +85,40 @@ def _mutating_gate(request: pytest.FixtureRequest) -> None:
     읽기 전용 TC 에는 비용이 없다. 이 fixture 는 의존이 없어서 `logged_in_page` 보다
     **먼저** 돌고, 그래서 차단될 때는 브라우저가 아예 안 뜬다.
 
-    ★ 아직 없는 것 - 운영(prod) URL 하드 가드. 옵트인은 "실수로 도는 것" 은 막지만,
-      허용을 켜둔 채 `STAFF_URL` 만 운영으로 바꾼 경우는 못 막는다. 운영 도메인
-      패턴이 확인되면 여기에 무조건 차단을 한 겹 더 건다
-      (CLAUDE.md `변경성(mutating) 테스트 준비` ① 참고).
+    **접속처 검사가 허용보다 먼저다** (2026-09-09 추가). 옵트인은 "모르고 도는 것" 은
+    막지만 "알고 돌렸는데 대상이 운영인 것" 은 못 막는다. 각각은 멀쩡한 판단인데
+    조합이 사고가 되는 경로가 있다.
+
+        ① 운영 화면을 볼 일이 있어 `.env` 의 STAFF_URL 을 운영으로 바꿔 둔다
+        ② 며칠 뒤 이관 TC 를 돌리려고 --allow-mutating 을 붙인다
+        ③ 실제 고객 차량의 소속 업체가 바뀐다
+
+    그래서 `MUTATING_ALLOWED_HOSTS` 에 없는 주소면 **허용을 켰든 말든 막는다.**
+    `skip` 이 아니라 `fail` 인 이유 - skip 은 "조건이 안 맞아 안 했다" 는 정상 상태인데,
+    이건 정상이 아니라 **사고 직전**이라 빨간불이 나야 사람이 알아챈다.
+
+    ★ 검사 순서가 "허용 -> 접속처" 인 것은 일부러다. 접속처를 먼저 보면, 허용을 켜지도
+      않은 평범한 `pytest -v` 가 낯선 환경에서 **8건 전부 빨간불**이 된다 - 어차피 안 돌
+      테스트인데 시끄럽고, 그러면 사람이 이 가드를 약하게 만들려 든다. 안전성은 같다:
+      허용이 꺼져 있으면 mutating 은 애초에 안 돈다. **정말 돌 뻔한 순간에만** 끊는다.
     """
     if request.node.get_closest_marker("mutating") is None:
         return
+
     if not _mutating_allowed(request.config):
         pytest.skip(
             "데이터를 바꾸는 TC 라 기본적으로 실행하지 않는다 - "
             "돌리려면 --allow-mutating 을 붙인다"
+        )
+
+    host = _staff_host()
+    if host not in MUTATING_ALLOWED_HOSTS:
+        pytest.fail(
+            f"[FAIL] 데이터를 바꾸는 TC 를 허용되지 않은 접속처에서 돌리려 했다: {host or '(주소 없음)'}\n"
+            f"        허용된 곳: {sorted(MUTATING_ALLOWED_HOSTS)}\n"
+            "        .env 의 STAFF_URL 을 확인한다. 운영(prod) 이라면 절대 돌리지 않는다.\n"
+            "        dev 주소가 바뀐 것이라면 conftest.py 의 MUTATING_ALLOWED_HOSTS 를 고친다",
+            pytrace=False,
         )
 
 
