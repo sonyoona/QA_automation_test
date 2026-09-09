@@ -287,7 +287,16 @@ TC를 쓴 뒤 반드시 자문한다:
 **③ 테스트 태그/실행 범위 — 여기까지는 2026-09-09 에 했다**
 - `pytest.ini` 에 `mutating` 마커를 등록하고, `test_vehicle_company_transfer.py` 의 **TC-059~066 여덟 건**에 `@pytest.mark.mutating` 을 붙였다. 저장에 성공하는 넷뿐 아니라 차단되는 넷도 **저장을 누르는 것까지는 같으므로** 함께 붙였다.
 - 확인: `pytest -m "not mutating" --collect-only -q` → **61/69** · `-m mutating` → **8/69**.
-- 기본 실행(`pytest -v`)은 69건을 모으지만 mutating 8건은 게이트가 skip 한다(61 실행 + 8 skip). skip 조차 안 보이게 하려면 `pytest -m "not mutating" -v`, mutating 만 돌리려면 `.env` 를 켠 뒤 `pytest -m mutating -v`.
+- **`-m` 과 `--allow-mutating` 은 하는 일이 다르다.** `-m` 은 **고르고**(선택), 플래그는 **돌려도 되는지**(허용)를 정한다. 별개의 단계라 조합이 넷이다 — `--allow-mutating` 은 "mutating 만 돌려라" 가 아니다.
+
+  | 명령 | 실제로 돌아가는 것 |
+  |---|---|
+  | `pytest -v` | **61 passed, 8 skipped** — 읽기 전용만 |
+  | `pytest --allow-mutating -v` | **69 전부** — 읽기 전용 61 + 저장하는 8이 같이 |
+  | `pytest -m mutating -v` | **8 skipped, 61 deselected** — 아무것도 안 돎 |
+  | `pytest -m mutating --allow-mutating -v` | **8만** — 저장하는 것만 |
+
+  `deselected`(`-m` 이 안 골랐다)와 `skipped`(골랐는데 게이트가 막았다)는 다른 말이다. 그래서 `-m mutating` 만 붙이면 **하나도 안 돈다** — 저장하는 8건을 실제로 돌리려면 둘 다 붙여야 한다. skip 이 리포트에 뜨는 것도 싫으면 `-m "not mutating"` 을 쓴다(이제 안전용이 아니라 리포트 정리용이다).
 - **마커는 "고를 수 있게" 만든 것이지 "모르고 돌리는 것을 막는" 장치가 아니다.** 그쪽은 ①의 옵트인 게이트가 맡는다(2026-09-09 에 넣었다). 그래서 이제 `pytest -v` 는 그 8건을 skip 한다 — `-m "not mutating"` 은 "리포트에서 아예 빼고 싶을 때" 쓰는 것이지 안전을 위해 필요한 것이 아니다.
 - **등록은 사용 조건이 아니다.** `@pytest.mark.아무이름` 은 등록 없이도 동작한다(`conftest` 가 붙이는 `tc_260907` 이 그 증거 — 등록된 적 없는데 `-m tc_260907` 로 15건이 골라진다). `pytest.ini` 에 적는 이유는 ① 경고를 없애고 ② 나중에 `--strict-markers` 를 켤 수 있게 하기 위함이다.
 - **`--strict-markers` 는 아직 안 켰다.** 켜면 미등록 마커가 경고가 아니라 에러가 되는데, `conftest` 훅이 붙이는 `tc_*` 는 배포일마다 새로 생겨 미리 등록할 수 없어 **INTERNALERROR 로 죽는다**(2026-09-09 실측). 켜려면 그 훅에서 `add_marker` 앞에 `item.config.addinivalue_line("markers", f"tc_{date}: …")` 를 같이 넣어야 하고, 그 조합이면 통과하는 것까지 확인했다. 지금 안 켠 이유는 손으로 붙이는 마커가 `mutating` 하나뿐이라 오타가 날 자리가 좁기 때문이다 — **`mutating` 마커가 늘어나면 켜는 쪽이 맞다.** 그 오타는 테스트를 빨갛게 만드는 게 아니라 **`-m "not mutating"` 필터를 빠져나가게** 만들어서, 위양성과 같은 방향으로 조용히 틀린다.
