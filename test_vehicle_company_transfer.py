@@ -1,6 +1,7 @@
 # GNB 경로: 차량관리 > 차량관리 (수정 - 업체 변경)
 
 import allure
+import pytest
 from playwright.sync_api import Locator, Page, expect
 
 from test_vehicle_edit_reseller import (
@@ -186,6 +187,7 @@ def test_TC058_vehicle_transfer_reseller_unchanged(logged_in_page: Page) -> None
     expect(reseller_text).to_have_text(original_reseller)
 
 
+@pytest.mark.mutating
 @allure.title("TC-059 | 리셀러 [커넥트] 차량을 파트너 [LG U+] 업체로 이관 성공")
 @allure.label("testcase", "TC-059")
 def test_TC059_vehicle_transfer_allowed_reseller_connect_to_lg_uplus(logged_in_page: Page) -> None:
@@ -219,6 +221,7 @@ def test_TC059_vehicle_transfer_allowed_reseller_connect_to_lg_uplus(logged_in_p
     _transfer_company_and_save(page, car, original_company)
 
 
+@pytest.mark.mutating
 @allure.title("TC-060 | 리셀러 [커넥트] 차량을 파트너 [스몰티켓] 업체로 이관 시도 시 차단")
 @allure.label("testcase", "TC-060")
 def test_TC060_vehicle_transfer_blocked_reseller_connect_to_smallticket(logged_in_page: Page) -> None:
@@ -249,6 +252,7 @@ def test_TC060_vehicle_transfer_blocked_reseller_connect_to_smallticket(logged_i
     expect(_get_edit_field(page, "리셀러 선택").locator(".text").first).to_have_text("커넥트")
 
 
+@pytest.mark.mutating
 @allure.title("TC-061 | 리셀러 [LG U+] 차량을 파트너 [LG U+] 다른 업체로 이관 성공")
 @allure.label("testcase", "TC-061")
 def test_TC061_vehicle_transfer_allowed_reseller_lg_uplus_to_lg_uplus(logged_in_page: Page) -> None:
@@ -280,6 +284,7 @@ def test_TC061_vehicle_transfer_allowed_reseller_lg_uplus_to_lg_uplus(logged_in_
     _transfer_company_and_save(page, car, original_company)
 
 
+@pytest.mark.mutating
 @allure.title("TC-062 | 리셀러 [LG U+] 차량을 파트너 [커넥트] 업체로 이관 시도 시 차단")
 @allure.label("testcase", "TC-062")
 def test_TC062_vehicle_transfer_blocked_reseller_lg_uplus_to_connect(logged_in_page: Page) -> None:
@@ -306,6 +311,7 @@ def test_TC062_vehicle_transfer_blocked_reseller_lg_uplus_to_connect(logged_in_p
     expect(_get_edit_field(page, "리셀러 선택").locator(".text").first).to_have_text("LG U+")
 
 
+@pytest.mark.mutating
 @allure.title("TC-063 | 리셀러 [스몰티켓] 차량을 파트너 [스몰티켓] 다른 업체로 이관 성공")
 @allure.label("testcase", "TC-063")
 def test_TC063_vehicle_transfer_allowed_reseller_smallticket_to_smallticket(logged_in_page: Page) -> None:
@@ -334,6 +340,7 @@ def test_TC063_vehicle_transfer_allowed_reseller_smallticket_to_smallticket(logg
     _transfer_company_and_save(page, car, original_company)
 
 
+@pytest.mark.mutating
 @allure.title("TC-064 | 리셀러 [스몰티켓] 차량을 파트너 [커넥트] 업체로 이관 시도 시 차단")
 @allure.label("testcase", "TC-064")
 def test_TC064_vehicle_transfer_blocked_reseller_smallticket_to_connect(logged_in_page: Page) -> None:
@@ -360,6 +367,7 @@ def test_TC064_vehicle_transfer_blocked_reseller_smallticket_to_connect(logged_i
     expect(_get_edit_field(page, "리셀러 선택").locator(".text").first).to_have_text("스몰티켓")
 
 
+@pytest.mark.mutating
 @allure.title("TC-065 | 업체 이관 성공 후 재진입 시 파트너·리셀러 정합성 확인")
 @allure.label("testcase", "TC-065")
 def test_TC065_vehicle_transfer_partner_reseller_consistent_after_reentry(logged_in_page: Page) -> None:
@@ -397,6 +405,7 @@ def test_TC065_vehicle_transfer_partner_reseller_consistent_after_reentry(logged
     _transfer_company_and_save(page, car, original_company)
 
 
+@pytest.mark.mutating
 @allure.title("TC-066 | 업체 이관 차단 후 재진입해도 기존 정보 유지 확인")
 @allure.label("testcase", "TC-066")
 def test_TC066_vehicle_transfer_blocked_data_unchanged_after_reentry(logged_in_page: Page) -> None:
