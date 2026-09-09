@@ -244,9 +244,10 @@ TC를 쓴 뒤 반드시 자문한다:
 ## 변경성(mutating) 테스트 준비 — 최소 규칙
 
 **★ 이 장은 "앞으로의 대비" 가 아니라 "이미 밀린 숙제" 다.** 2026-09-09 확인 —
-위 장에 적은 대로 TC-059~066 이 이미 저장을 실행하는데, **아래 ①②③ 은 하나도 구현돼 있지 않다.**
-`@pytest.mark.mutating` 도, `ALLOW_MUTATING_TESTS` 게이트도, `pytest.ini` 조차 없다.
-즉 지금 `pytest -v` 를 그냥 돌리면 **저장하는 TC 도 아무 경고 없이 같이 돈다.**
+위 장에 적은 대로 TC-059~066 이 이미 저장을 실행한다. ③(마커)은 2026-09-09 에 했고
+**①(옵트인 게이트)과 ②(원복을 teardown 으로)는 아직 안 했다.**
+즉 지금도 `pytest -v` 를 그냥 돌리면 **저장하는 TC 가 같이 돈다** — 빼려면 사람이
+`-m "not mutating"` 을 붙여야 한다.
 
 그 전까지 이 자리에는 "지금 있는 테스트는 전부 읽기 전용이라 아직 위험이 없다" 고 적혀 있었다.
 그 문장이 틀린 채로 남아 있어서 이 저장소를 안전하다고 믿고 전체 실행을 걸 수 있었다 —
@@ -265,10 +266,14 @@ TC를 쓴 뒤 반드시 자문한다:
 - 구조상 삭제가 불가능한 데이터(이력성 로그 등)는 mutating 테스트 대상에서 제외하거나, 남는 데이터를 code-notes에 목록으로 남겨 추적한다.
 - **★ 지금 그 원복이 `teardown` 이 아니라 테스트 본문 마지막 줄에 있다.** TC-059 등은 검증이 끝난 뒤 `_transfer_company_and_save(page, car, original_company)` 로 되돌리는데, **중간에서 실패하면 그 줄에 도달하지 못해 차량이 바뀐 채로 남는다.** 위 "정리에 실패하면 그 자체를 테스트 실패로 본다" 를 지키려면 `try/finally` 나 fixture teardown 으로 옮겨야 한다. 원복할 값을 하드코딩하지 않고 모달에서 읽어 쓰는 것(`original_company`)은 그대로 두면 된다 — 그쪽은 잘 돼 있다.
 
-**③ 테스트 태그/실행 범위**
-- pytest marker `mutating`을 정의하고(`pytest.ini`에 `markers = mutating: 데이터를 변경하는 테스트`), 모든 mutating 테스트에 `@pytest.mark.mutating`을 붙인다.
-- 기본 실행(`pytest -v`)은 marker 유무와 무관하게 전부 돈다. 읽기 전용만 빠르게 돌리고 싶으면 `pytest -m "not mutating" -v`, mutating만 돌리려면 `pytest -m mutating -v`.
-- **지금 붙일 대상은 `test_vehicle_company_transfer.py` 의 TC-059~066 여덟 건이다.** 저장에 성공하는 넷뿐 아니라 차단되는 넷도 **저장을 시도**하므로 함께 붙인다.
+**③ 테스트 태그/실행 범위 — 여기까지는 2026-09-09 에 했다**
+- `pytest.ini` 에 `mutating` 마커를 등록하고, `test_vehicle_company_transfer.py` 의 **TC-059~066 여덟 건**에 `@pytest.mark.mutating` 을 붙였다. 저장에 성공하는 넷뿐 아니라 차단되는 넷도 **저장을 누르는 것까지는 같으므로** 함께 붙였다.
+- 확인: `pytest -m "not mutating" --collect-only -q` → **61/69** · `-m mutating` → **8/69**.
+- 기본 실행(`pytest -v`)은 marker 유무와 무관하게 전부 돈다. 안전한 것만 돌리려면 `pytest -m "not mutating" -v`, mutating만 돌리려면 `pytest -m mutating -v`.
+- **마커는 "고를 수 있게" 만든 것이지 "모르고 돌리는 것을 막는" 장치가 아니다.** ①의 옵트인 게이트가 아직 없어서 `pytest -v` 는 여전히 그 8건을 같이 돌린다. 그 전까지는 사람이 `-m "not mutating"` 을 붙이는 것에 의존한다.
+- **등록은 사용 조건이 아니다.** `@pytest.mark.아무이름` 은 등록 없이도 동작한다(`conftest` 가 붙이는 `tc_260907` 이 그 증거 — 등록된 적 없는데 `-m tc_260907` 로 15건이 골라진다). `pytest.ini` 에 적는 이유는 ① 경고를 없애고 ② 나중에 `--strict-markers` 를 켤 수 있게 하기 위함이다.
+- **`--strict-markers` 는 아직 안 켰다.** 켜면 미등록 마커가 경고가 아니라 에러가 되는데, `conftest` 훅이 붙이는 `tc_*` 는 배포일마다 새로 생겨 미리 등록할 수 없어 **INTERNALERROR 로 죽는다**(2026-09-09 실측). 켜려면 그 훅에서 `add_marker` 앞에 `item.config.addinivalue_line("markers", f"tc_{date}: …")` 를 같이 넣어야 하고, 그 조합이면 통과하는 것까지 확인했다. 지금 안 켠 이유는 손으로 붙이는 마커가 `mutating` 하나뿐이라 오타가 날 자리가 좁기 때문이다 — **`mutating` 마커가 늘어나면 켜는 쪽이 맞다.** 그 오타는 테스트를 빨갛게 만드는 게 아니라 **`-m "not mutating"` 필터를 빠져나가게** 만들어서, 위양성과 같은 방향으로 조용히 틀린다.
+- 그 대신 `tc_*` 경고만 `filterwarnings` 로 껐다(`ignore:Unknown pytest.mark.tc_:…`). 메시지 앞부분 매칭이라 `mutatng` 같은 진짜 오타는 여전히 경고가 뜬다.
 - `smoke`·`readonly` 같은 추가 marker는 지금 쓸 곳이 확인된 게 없어 만들지 않는다 — 필요해지면 그때 추가한다(안 쓰는 marker를 미리 만들면 뭘 기준으로 태깅해야 하는지 기준 없이 방치된다).
 
 ## 테스트 독립성
