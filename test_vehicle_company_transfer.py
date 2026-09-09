@@ -1,5 +1,7 @@
 # GNB 경로: 차량관리 > 차량관리 (수정 - 업체 변경)
 
+from typing import Callable, Generator
+
 import allure
 import pytest
 from playwright.sync_api import Locator, Page, expect
@@ -142,6 +144,57 @@ def _attempt_transfer_and_expect_blocked(page: Page, destination: str) -> None:
     _expect_transfer_blocked(page)
 
 
+@allure.step("차량 {car_number} 의 소속 업체를 {original_company} 로 원복")
+def _restore_company(page: Page, car_number: str, original_company: str) -> None:
+    """차량 소속 업체를 원래 값으로 되돌린다. 이미 원래 값이면 아무것도 하지 않는다.
+
+    `_open_carmgmt_edit_modal` 이 `page.goto()` 로 시작하므로, 테스트가 모달이나 알럿을
+    열어둔 채 깨졌어도 그 상태를 신경 쓰지 않고 부를 수 있다.
+
+    현재 값을 먼저 읽고 같으면 아무것도 안 하는 이유 - 차단(blocked) TC 는 정상이라면
+    데이터가 안 바뀌므로 매번 저장을 한 번 더 누르는 것은 그 자체가 위험하다. 반대로
+    정책이 회귀해서 차단됐어야 할 이관이 실제로 저장됐다면, 그때는 여기서 되돌린다.
+    """
+    _open_carmgmt_edit_modal(page, car_number)
+    current = _read_settled(_get_edit_field(page, "업체").locator(".text").first)
+    if current == original_company:
+        return
+    _transfer_company_and_save(page, car_number, original_company)
+
+
+@pytest.fixture
+def company_guard(logged_in_page: Page) -> Generator[Callable[[str, str], None], None, None]:
+    """이관 TC 가 바꾼 차량 소속 업체를, **테스트가 어떻게 끝나든** 원래대로 되돌린다.
+
+    전에는 원복이 테스트 본문 **마지막 줄**에 있었다. 그러면 중간에서 실패했을 때 그 줄에
+    도달하지 못해 **차량이 바뀐 채로 남는다.** 다음 실행은 다른 전제로 시작하게 되고,
+    그 뒤의 실패는 원인 찾기가 어렵다 (CLAUDE.md `변경성 테스트 준비` ②).
+
+    쓰는 법 - 원래 값을 읽은 직후에 등록해 둔다. 그 다음부터는 무슨 일이 나도 teardown 이
+    책임진다.
+
+        original_company = _read_settled(...)
+        company_guard(car, original_company)
+
+    **차단(blocked) TC 도 등록한다.** 정상이라면 데이터가 안 바뀌지만, 막아주는 그것이 바로
+    검증 대상이라 정책이 회귀해 있으면 저장이 실제로 통과한다. 그때 원복할 곳이 없으면
+    데이터가 그대로 남는다.
+
+    원복에 실패하면 **예외를 삼키지 않는다** - teardown 에서 그대로 터져 pytest 가 그 테스트를
+    ERROR 로 표시한다. 정리 실패를 조용히 넘기면 "통과했는데 데이터는 바뀐 채" 가 된다.
+    """
+    page = logged_in_page
+    original: dict[str, str] = {}
+
+    def guard(car_number: str, original_company: str) -> None:
+        original[car_number] = original_company
+
+    yield guard
+
+    for car_number, original_company in original.items():
+        _restore_company(page, car_number, original_company)
+
+
 @allure.title("TC-057 | 업체 변경 시 파트너 값 노출 확인")
 @allure.label("testcase", "TC-057")
 def test_TC057_vehicle_transfer_partner_updates_to_selected_company(logged_in_page: Page) -> None:
@@ -190,7 +243,7 @@ def test_TC058_vehicle_transfer_reseller_unchanged(logged_in_page: Page) -> None
 @pytest.mark.mutating
 @allure.title("TC-059 | 리셀러 [커넥트] 차량을 파트너 [LG U+] 업체로 이관 성공")
 @allure.label("testcase", "TC-059")
-def test_TC059_vehicle_transfer_allowed_reseller_connect_to_lg_uplus(logged_in_page: Page) -> None:
+def test_TC059_vehicle_transfer_allowed_reseller_connect_to_lg_uplus(logged_in_page: Page, company_guard: Callable[[str, str], None]) -> None:
     """
     GIVEN  리셀러가 [커넥트]인 차량(900용1001)의 수정 화면에 진입한 상태
     WHEN   파트너가 [LG U+]인 업체(LG업체입니다)로 변경하고 지점을 선택한 뒤 저장하면
@@ -207,6 +260,7 @@ def test_TC059_vehicle_transfer_allowed_reseller_connect_to_lg_uplus(logged_in_p
     reseller_text = _get_edit_field(page, "리셀러 선택").locator(".text").first
     expect(reseller_text).to_have_text("커넥트")
     original_company = _read_settled(_get_edit_field(page, "업체").locator(".text").first)
+    company_guard(car, original_company)
 
     _transfer_company_and_save(page, car, destination)
 
@@ -217,14 +271,11 @@ def test_TC059_vehicle_transfer_allowed_reseller_connect_to_lg_uplus(logged_in_p
     reseller_text = _get_edit_field(page, "리셀러 선택").locator(".text").first
     expect(reseller_text).to_have_text("커넥트")
 
-    # 원복 — 다음 실행에서도 같은 전제로 시작할 수 있게
-    _transfer_company_and_save(page, car, original_company)
-
 
 @pytest.mark.mutating
 @allure.title("TC-060 | 리셀러 [커넥트] 차량을 파트너 [스몰티켓] 업체로 이관 시도 시 차단")
 @allure.label("testcase", "TC-060")
-def test_TC060_vehicle_transfer_blocked_reseller_connect_to_smallticket(logged_in_page: Page) -> None:
+def test_TC060_vehicle_transfer_blocked_reseller_connect_to_smallticket(logged_in_page: Page, company_guard: Callable[[str, str], None]) -> None:
     """
     GIVEN  리셀러가 [커넥트]인 차량(900용1001)의 수정 화면에 진입한 상태
     WHEN   파트너가 [스몰티켓]인 업체(스몰티켓(지입)2)로 변경하고 지점을 선택한 뒤 저장을 시도하면
@@ -242,6 +293,7 @@ def test_TC060_vehicle_transfer_blocked_reseller_connect_to_smallticket(logged_i
     reseller_text = _get_edit_field(page, "리셀러 선택").locator(".text").first
     expect(reseller_text).to_have_text("커넥트")
     original_company = _read_settled(_get_edit_field(page, "업체").locator(".text").first)
+    company_guard(car, original_company)
     original_partner = _read_settled(_get_edit_field(page, "파트너 선택").locator(".text").first)
 
     _attempt_transfer_and_expect_blocked(page, destination)
@@ -255,7 +307,7 @@ def test_TC060_vehicle_transfer_blocked_reseller_connect_to_smallticket(logged_i
 @pytest.mark.mutating
 @allure.title("TC-061 | 리셀러 [LG U+] 차량을 파트너 [LG U+] 다른 업체로 이관 성공")
 @allure.label("testcase", "TC-061")
-def test_TC061_vehicle_transfer_allowed_reseller_lg_uplus_to_lg_uplus(logged_in_page: Page) -> None:
+def test_TC061_vehicle_transfer_allowed_reseller_lg_uplus_to_lg_uplus(logged_in_page: Page, company_guard: Callable[[str, str], None]) -> None:
     """
     GIVEN  리셀러가 [LG U+]인 차량(900용1003, 원 소속 LG업체입니다)의 수정 화면에 진입한 상태
     WHEN   파트너가 [LG U+]인 다른 업체(엘지테스트1)로 변경하고 지점을 선택한 뒤 저장하면
@@ -272,6 +324,7 @@ def test_TC061_vehicle_transfer_allowed_reseller_lg_uplus_to_lg_uplus(logged_in_
     reseller_text = _get_edit_field(page, "리셀러 선택").locator(".text").first
     expect(reseller_text).to_have_text("LG U+")
     original_company = _read_settled(_get_edit_field(page, "업체").locator(".text").first)
+    company_guard(car, original_company)
 
     _transfer_company_and_save(page, car, destination)
 
@@ -281,13 +334,11 @@ def test_TC061_vehicle_transfer_allowed_reseller_lg_uplus_to_lg_uplus(logged_in_
     reseller_text = _get_edit_field(page, "리셀러 선택").locator(".text").first
     expect(reseller_text).to_have_text("LG U+")
 
-    _transfer_company_and_save(page, car, original_company)
-
 
 @pytest.mark.mutating
 @allure.title("TC-062 | 리셀러 [LG U+] 차량을 파트너 [커넥트] 업체로 이관 시도 시 차단")
 @allure.label("testcase", "TC-062")
-def test_TC062_vehicle_transfer_blocked_reseller_lg_uplus_to_connect(logged_in_page: Page) -> None:
+def test_TC062_vehicle_transfer_blocked_reseller_lg_uplus_to_connect(logged_in_page: Page, company_guard: Callable[[str, str], None]) -> None:
     """
     GIVEN  리셀러가 [LG U+]인 차량(900용1003)의 수정 화면에 진입한 상태
     WHEN   파트너가 [커넥트]인 업체(IMS모빌리티)로 변경하고 지점을 선택한 뒤 저장을 시도하면
@@ -301,6 +352,7 @@ def test_TC062_vehicle_transfer_blocked_reseller_lg_uplus_to_connect(logged_in_p
     reseller_text = _get_edit_field(page, "리셀러 선택").locator(".text").first
     expect(reseller_text).to_have_text("LG U+")
     original_company = _read_settled(_get_edit_field(page, "업체").locator(".text").first)
+    company_guard(car, original_company)
     original_partner = _read_settled(_get_edit_field(page, "파트너 선택").locator(".text").first)
 
     _attempt_transfer_and_expect_blocked(page, destination)
@@ -314,7 +366,7 @@ def test_TC062_vehicle_transfer_blocked_reseller_lg_uplus_to_connect(logged_in_p
 @pytest.mark.mutating
 @allure.title("TC-063 | 리셀러 [스몰티켓] 차량을 파트너 [스몰티켓] 다른 업체로 이관 성공")
 @allure.label("testcase", "TC-063")
-def test_TC063_vehicle_transfer_allowed_reseller_smallticket_to_smallticket(logged_in_page: Page) -> None:
+def test_TC063_vehicle_transfer_allowed_reseller_smallticket_to_smallticket(logged_in_page: Page, company_guard: Callable[[str, str], None]) -> None:
     """
     GIVEN  리셀러가 [스몰티켓]인 차량(900용1004, 원 소속 스몰티켓(지입)2)의 수정 화면에 진입한 상태
     WHEN   파트너가 [스몰티켓]인 다른 업체(스몰티켓(테스트))로 변경하고 지점을 선택한 뒤 저장하면
@@ -328,6 +380,7 @@ def test_TC063_vehicle_transfer_allowed_reseller_smallticket_to_smallticket(logg
     reseller_text = _get_edit_field(page, "리셀러 선택").locator(".text").first
     expect(reseller_text).to_have_text("스몰티켓")
     original_company = _read_settled(_get_edit_field(page, "업체").locator(".text").first)
+    company_guard(car, original_company)
 
     _transfer_company_and_save(page, car, destination)
 
@@ -337,13 +390,11 @@ def test_TC063_vehicle_transfer_allowed_reseller_smallticket_to_smallticket(logg
     reseller_text = _get_edit_field(page, "리셀러 선택").locator(".text").first
     expect(reseller_text).to_have_text("스몰티켓")
 
-    _transfer_company_and_save(page, car, original_company)
-
 
 @pytest.mark.mutating
 @allure.title("TC-064 | 리셀러 [스몰티켓] 차량을 파트너 [커넥트] 업체로 이관 시도 시 차단")
 @allure.label("testcase", "TC-064")
-def test_TC064_vehicle_transfer_blocked_reseller_smallticket_to_connect(logged_in_page: Page) -> None:
+def test_TC064_vehicle_transfer_blocked_reseller_smallticket_to_connect(logged_in_page: Page, company_guard: Callable[[str, str], None]) -> None:
     """
     GIVEN  리셀러가 [스몰티켓]인 차량(900용1004)의 수정 화면에 진입한 상태
     WHEN   파트너가 [커넥트]인 업체(IMS모빌리티)로 변경하고 지점을 선택한 뒤 저장을 시도하면
@@ -357,6 +408,7 @@ def test_TC064_vehicle_transfer_blocked_reseller_smallticket_to_connect(logged_i
     reseller_text = _get_edit_field(page, "리셀러 선택").locator(".text").first
     expect(reseller_text).to_have_text("스몰티켓")
     original_company = _read_settled(_get_edit_field(page, "업체").locator(".text").first)
+    company_guard(car, original_company)
     original_partner = _read_settled(_get_edit_field(page, "파트너 선택").locator(".text").first)
 
     _attempt_transfer_and_expect_blocked(page, destination)
@@ -370,7 +422,7 @@ def test_TC064_vehicle_transfer_blocked_reseller_smallticket_to_connect(logged_i
 @pytest.mark.mutating
 @allure.title("TC-065 | 업체 이관 성공 후 재진입 시 파트너·리셀러 정합성 확인")
 @allure.label("testcase", "TC-065")
-def test_TC065_vehicle_transfer_partner_reseller_consistent_after_reentry(logged_in_page: Page) -> None:
+def test_TC065_vehicle_transfer_partner_reseller_consistent_after_reentry(logged_in_page: Page, company_guard: Callable[[str, str], None]) -> None:
     """
     GIVEN  리셀러가 [커넥트]인 차량(900용1002, 원 소속 LG업체입니다)의 수정 화면에 진입한 상태
     WHEN   파트너가 [커넥트]인 업체(IMS모빌리티)로 변경하고 지점을 선택한 뒤 저장, 완료 팝업 [OK]
@@ -390,6 +442,7 @@ def test_TC065_vehicle_transfer_partner_reseller_consistent_after_reentry(logged
     reseller_text = _get_edit_field(page, "리셀러 선택").locator(".text").first
     expect(reseller_text).to_have_text("커넥트")
     original_company = _read_settled(_get_edit_field(page, "업체").locator(".text").first)
+    company_guard(car, original_company)
 
     _transfer_company_and_save(page, car, destination)
 
@@ -402,13 +455,11 @@ def test_TC065_vehicle_transfer_partner_reseller_consistent_after_reentry(logged
     reseller_text = _get_edit_field(page, "리셀러 선택").locator(".text").first
     expect(reseller_text).to_have_text("커넥트")
 
-    _transfer_company_and_save(page, car, original_company)
-
 
 @pytest.mark.mutating
 @allure.title("TC-066 | 업체 이관 차단 후 재진입해도 기존 정보 유지 확인")
 @allure.label("testcase", "TC-066")
-def test_TC066_vehicle_transfer_blocked_data_unchanged_after_reentry(logged_in_page: Page) -> None:
+def test_TC066_vehicle_transfer_blocked_data_unchanged_after_reentry(logged_in_page: Page, company_guard: Callable[[str, str], None]) -> None:
     """
     GIVEN  리셀러가 [커넥트]인 차량(900용1002)의 수정 화면에 진입한 상태
     WHEN   파트너가 [스몰티켓]인 업체로 변경을 시도해 차단된 뒤, 차량 수정 화면에 재진입하면
@@ -427,6 +478,7 @@ def test_TC066_vehicle_transfer_blocked_data_unchanged_after_reentry(logged_in_p
     reseller_text = _get_edit_field(page, "리셀러 선택").locator(".text").first
     expect(reseller_text).to_have_text("커넥트")
     original_company = _read_settled(_get_edit_field(page, "업체").locator(".text").first)
+    company_guard(car, original_company)
     original_partner = _read_settled(_get_edit_field(page, "파트너 선택").locator(".text").first)
 
     _attempt_transfer_and_expect_blocked(page, destination)
