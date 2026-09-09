@@ -242,7 +242,7 @@ class FieldServicePage:
             ) from e
 
     @allure.step("결과 목록이 안정될 때까지 대기")
-    def wait_table_settled(self, timeout_ms: int = 30_000) -> None:
+    def wait_table_settled(self, timeout_ms: int = 30_000, allow_empty: bool = True) -> None:
         """결과 목록이 "갱신 끝" 상태가 될 때까지 기다린다.
 
         행이 하나라도 생기는 것만 보면 안 되는 이유가 둘이다.
@@ -255,6 +255,14 @@ class FieldServicePage:
         `polling` 간격으로 두 번 재는 것이라 최소 그만큼은 걸리지만, 조건이 되면 즉시
         빠져나오므로 고정 대기와 달리 낭비가 쌓이지 않는다.
 
+        **`allow_empty=False` 는 "여기서 빈 상태는 결과가 아니라 아직 안 온 것" 이라고
+        아는 자리에서만 쓴다.** 2026-09-09 실측 - 상태 탭을 누르면 서버 응답을 기다리는
+        동안 표가 스피너가 아니라 EMPTY_TEXT 안내를 그린다. 그게 polling 두 번(0.6초)
+        보다 오래 남으면 이 대기가 `__EMPTY__` 를 연속 2회 읽고 "다 그려졌다" 로
+        통과시킨다. 그날 [대기](배지 70건)·[배정완료](96건) 탭이 그렇게 0행으로 읽혀
+        TC-260907-006 두 건이 깨졌다. 연속 2회 규칙은 **옛 목록에 속는 것**은 막지만
+        **빈 상태에 속는 것**은 못 막는다 - 빈 상태도 그대로 있으면 연속 2회 같기 때문이다.
+
         한계 - 서버 응답이 polling 간격 두 번보다 느리면 옛 목록을 두 번 연속으로 읽어
         "안정됐다" 로 볼 수 있다. 이 대기는 그 창을 좁힐 뿐 없애지는 못한다. 갱신 전후를
         구분해야 하는 TC 는 여기에 기대지 말고 본문에서 직접 대조한다.
@@ -262,23 +270,37 @@ class FieldServicePage:
         # 직전 호출이 남긴 값과 대조해 첫 샘플에 곧바로 통과해 버리는 것을 막는다
         # (화면 이동은 페이지가 새로 뜨지만 검색은 그렇지 않다).
         self.page.evaluate("() => { window.__fsTableSnapshot = undefined; }")
-        self.page.wait_for_function(
-            """(emptyText) => {
-                const ids = [...document.querySelectorAll('[data-testid^="fs-table__row--"]')]
-                    .map(e => e.getAttribute('data-testid')).join(',');
-                const root = document.querySelector('[data-testid="fs-table__root"]');
-                const isEmpty = !!(root && root.innerText.includes(emptyText));
-                // 행도 없고 빈 상태 안내도 없으면 아직 그리는 중이다
-                if (!ids && !isEmpty) { window.__fsTableSnapshot = undefined; return false; }
-                const snapshot = isEmpty ? '__EMPTY__' : ids;
-                const settled = window.__fsTableSnapshot === snapshot;
-                window.__fsTableSnapshot = snapshot;
-                return settled;
-            }""",
-            arg=self.EMPTY_TEXT,
-            polling=300,
-            timeout=timeout_ms,
-        )
+        try:
+            self.page.wait_for_function(
+                """({emptyText, allowEmpty}) => {
+                    const ids = [...document.querySelectorAll('[data-testid^="fs-table__row--"]')]
+                        .map(e => e.getAttribute('data-testid')).join(',');
+                    const root = document.querySelector('[data-testid="fs-table__root"]');
+                    const isEmpty = !!(root && root.innerText.includes(emptyText));
+                    // 행도 없고 빈 상태 안내도 없으면 아직 그리는 중이다
+                    if (!ids && !isEmpty) { window.__fsTableSnapshot = undefined; return false; }
+                    // 행이 있어야 하는 것을 아는 자리에서는 빈 상태를 완료로 인정하지 않는다
+                    if (!ids && !allowEmpty) { window.__fsTableSnapshot = undefined; return false; }
+                    const snapshot = isEmpty ? '__EMPTY__' : ids;
+                    const settled = window.__fsTableSnapshot === snapshot;
+                    window.__fsTableSnapshot = snapshot;
+                    return settled;
+                }""",
+                arg={"emptyText": self.EMPTY_TEXT, "allowEmpty": allow_empty},
+                polling=300,
+                timeout=timeout_ms,
+            )
+        except Exception as e:
+            reason = (
+                "행이 있어야 하는 자리인데 끝내 안 붙었다"
+                if not allow_empty
+                else "목록이 끝내 안정되지 않았다"
+            )
+            raise AssertionError(
+                f"[FAIL] {reason} ({timeout_ms / 1000:.0f}초 대기) - "
+                "데이터가 도착하지 않은 화면일 수 있다 (세션 끊김·API 실패 의심)\n"
+                f"        {self.state_summary()}"
+            ) from e
 
     def is_empty_result(self) -> bool:
         """결과가 0 건이라 "데이터가 없습니다" 안내가 떠 있는 상태인가.
@@ -347,9 +369,19 @@ class FieldServicePage:
 
         건수 배지는 탭을 눌러도 이미 채워져 있으므로 여기서는 표만 기다린다
         (`wait_status_counts` 는 화면 진입 때 한 번이면 된다).
+
+        **그 배지를 "행이 있어야 하는가" 의 근거로 같이 쓴다.** 배지가 0 보다 크면
+        그 탭 1페이지에는 반드시 행이 있으므로, 표의 "데이터가 없습니다" 는 결과가
+        아니라 아직 응답이 안 온 것이다. 그 구분을 `wait_table_settled` 에 넘겨야
+        빈 상태를 완료로 인정하고 0행을 읽는 일이 없다 (그 함수 docstring 참고).
+
+        전제 - 탭을 누르는 시점이 1페이지다. 뒤 페이지에 있다가 탭을 바꾸는 흐름이
+        생기면 이 전제가 깨질 수 있는데, 그때는 조용히 통과하지 않고 대기가
+        타임아웃되어 실패로 드러난다.
         """
         self.status_tab(name).click()
-        self.wait_table_settled()
+        expected = self.status_tab_count(name)
+        self.wait_table_settled(allow_empty=(expected == 0))
 
     @allure.step("조회 버튼 클릭")
     def search(self) -> None:
