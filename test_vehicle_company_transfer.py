@@ -53,9 +53,106 @@ def _read_settled(field_text: Locator) -> str:
     return field_text.inner_text()
 
 
+# 지점 드롭다운의 옵션을 브라우저 안에서 직접 읽는 JS. 닫혀 있어도 DOM 에는 있으므로
+# `inner_text()`(안 보이면 빈 문자열)가 아니라 `evaluate` 로 읽어야 한다.
+_BRANCH_OPTIONS_JS = """() => {
+    const modal = [...document.querySelectorAll('section')]
+        .find(s => s.querySelector('input[name="carNumber"]'));
+    if (!modal) return null;
+    const label = [...modal.querySelectorAll('label.form-label')]
+        .find(l => l.innerText.trim() === '지점');
+    if (!label || !label.nextElementSibling) return null;
+    return [...label.nextElementSibling.querySelectorAll('[role=option]')]
+        .map(o => o.innerText.trim()).join('|');
+}"""
+
+
+def _branch_options_fingerprint(page: Page) -> str | None:
+    """지금 지점 드롭다운에 들어 있는 옵션 목록. 못 읽으면 None."""
+    return page.evaluate(_BRANCH_OPTIONS_JS)
+
+
+def _wait_branch_options_refreshed(page: Page, before: str | None, timeout_ms: int = 15_000) -> None:
+    """지점 목록이 **새 업체 것으로 갈리고 안정될 때까지** 기다린다.
+
+    2026-09-09 실측 - 업체를 바꿔도 지점 드롭다운은 즉시 안 갈린다. 이전 업체의 옵션 목록과
+    선택값(`aria-selected="true"`)을 그대로 들고 있다가 나중에 교체된다. 그 사이에 첫 옵션을
+    고르면 **다른 업체의 지점**을 고른 셈이 되어, 저장할 때 "지점을 선택해주세요" 로 막힌다.
+    TC-066 이 그렇게 깨졌다.
+
+    라벨(`.text`)로는 이걸 못 가른다 - 갈리기 전에도 이전 지점 이름이 찍혀 있어서
+    "선택" 이 아니다. `aria-selected` 도 이전 옵션에 이미 붙어 있어 신호가 못 된다.
+    **"목록이 바뀌었다" 가 유일하게 남는 신호**라 그것을 기다린다.
+
+    조건이 둘인 이유 - `!== before` 만 보면 교체 도중의 중간 상태(빈 목록 등)에 속고,
+    `연속 2회 동일` 만 보면 아직 안 갈린 이전 목록이 두 번 연속 같아서 통과한다
+    (`pages/field_service_page.py` 의 `wait_table_settled` 과 같은 함정).
+
+    ★ 두 업체의 지점 이름 목록이 **완전히 같으면** 갈린 것을 알 수 없다 - 2026-09-09 실측에서
+      스몰티켓(테스트)와 스몰티켓(지입)2 가 둘 다 `['본사']` 하나뿐이라 여기 걸렸다.
+      그때는 **실패시키지 않고 넘어간다.** 못 가리는 것을 실패로 만들면 멀쩡한 이관까지
+      막히기 때문이다. 대신 목록이 안정되기만 기다린 뒤 진행하고, 그래서 잘못 골랐다면
+      저장할 때 "지점을 선택해주세요" 로 드러난다 - `_save_with_branch_retry` 가 그걸 받아
+      다시 고른다. **못 가리는 것을 조용히 넘기되, 틀린 결과는 반드시 드러나게** 한 것이다.
+    """
+    page.evaluate("() => { window.__branchSnapshot = undefined; }")
+    try:
+        page.wait_for_function(
+            """(args) => {
+                const modal = [...document.querySelectorAll('section')]
+                    .find(s => s.querySelector('input[name="carNumber"]'));
+                if (!modal) return false;
+                const label = [...modal.querySelectorAll('label.form-label')]
+                    .find(l => l.innerText.trim() === '지점');
+                if (!label || !label.nextElementSibling) return false;
+                const cur = [...label.nextElementSibling.querySelectorAll('[role=option]')]
+                    .map(o => o.innerText.trim()).join('|');
+                if (!cur) { window.__branchSnapshot = undefined; return false; }
+                if (cur === args.before) { window.__branchSnapshot = undefined; return false; }
+                const settled = window.__branchSnapshot === cur;
+                window.__branchSnapshot = cur;
+                return settled;
+            }""",
+            arg={"before": before},
+            polling=300,
+            timeout=timeout_ms,
+        )
+    except Exception:
+        # 갈린 것을 확인하지 못했다. 목록이 같은 업체일 수 있으므로 여기서 끊지 않고,
+        # "안정되기만" 기다린 뒤 넘긴다. 잘못 골랐다면 저장에서 드러난다.
+        page.evaluate("() => { window.__branchSnapshot = undefined; }")
+        try:
+            page.wait_for_function(
+                """() => {
+                    const modal = [...document.querySelectorAll('section')]
+                        .find(s => s.querySelector('input[name="carNumber"]'));
+                    if (!modal) return false;
+                    const label = [...modal.querySelectorAll('label.form-label')]
+                        .find(l => l.innerText.trim() === '지점');
+                    if (!label || !label.nextElementSibling) return false;
+                    const cur = [...label.nextElementSibling.querySelectorAll('[role=option]')]
+                        .map(o => o.innerText.trim()).join('|');
+                    if (!cur) { window.__branchSnapshot = undefined; return false; }
+                    const settled = window.__branchSnapshot === cur;
+                    window.__branchSnapshot = cur;
+                    return settled;
+                }""",
+                polling=300,
+                timeout=5_000,
+            )
+        except Exception:
+            pass
+
+
 @allure.step("인수받을 업체로 {company_name} 선택")
 def _select_transfer_company(page: Page, company_name: str) -> None:
-    """"업체"(인수받을 업체) 검색 드롭다운에서 이름으로 검색해 정확히 일치하는 업체를 선택한다."""
+    """"업체"(인수받을 업체) 검색 드롭다운에서 이름으로 검색해 정확히 일치하는 업체를 선택한다.
+
+    고른 뒤 **지점 목록이 새 업체 것으로 갈릴 때까지 기다린다** - 그 전에 지점을 고르면
+    이전 업체의 지점을 고르게 된다 (`_wait_branch_options_refreshed` 참고).
+    """
+    before = _branch_options_fingerprint(page)
+
     company_field = _get_edit_field(page, "업체")
     company_field.click()
     company_field.locator("input.search").fill(company_name)
@@ -63,6 +160,8 @@ def _select_transfer_company(page: Page, company_name: str) -> None:
     option = company_field.get_by_role("option", name=company_name, exact=True)
     expect(option).to_be_visible()
     option.click()
+
+    _wait_branch_options_refreshed(page, before)
 
 
 @allure.step("지점 아무거나 선택")
@@ -78,9 +177,13 @@ def _select_any_branch(page: Page, retries: int = 3) -> None:
         branch_field.click()
         option = branch_field.get_by_role("option").first
         expect(option).to_be_visible(timeout=5_000)
+        picked = option.inner_text().strip()
         option.click()
         try:
-            expect(branch_text).not_to_have_text("선택", timeout=3_000)
+            # 라벨이 "선택" 이 아닌 것만 보면 안 된다 - 업체를 바꾸기 전 지점 이름이 그대로
+            # 남아 있어도 통과해서, 클릭이 씹혀도 실패할 수 없는 가드가 된다(2026-09-09 실측).
+            # **방금 고른 그 지점**이 찍혔는지까지 본다.
+            expect(branch_text).to_have_text(picked, timeout=3_000)
             return
         except AssertionError:
             if attempt == retries - 1:
@@ -95,8 +198,13 @@ def _click_save_and_confirm(page: Page) -> None:
     ★ [수정]을 누르면 확인 팝업 대신 **유효성 검사 팝업**이 뜰 수 있다 - 2026-09-09 실측에서
       TC-066 이 "지점을 선택해주세요." 를 만났다. 그 팝업에도 [OK] 가 있어서, 예전에는 그걸
       확인 팝업으로 착각해 눌러버리고 **8 초 뒤 엉뚱한 곳**("차단 알럿이 안 뜬다")에서 실패했다.
-      원인이 지점인데 메시지는 이관 정책을 가리키니 매번 헛다리를 짚게 된다. 그래서 팝업 제목을
+      원인이 지점인데 메시지는 이관 정책을 가리키니 매번 헛다리를 짚게 된다. 그래서 팝업 문구를
       먼저 읽고, 유효성 팝업이면 그 자리에서 그 문구 그대로 실패시킨다.
+
+    ★★ 그 문구를 **못 읽어도 그냥 진행한다.** 2026-09-09 실측 - 처음에는 `heading` role 로
+       읽었는데, 유효성 팝업에는 heading 이 있고 **정상 확인 팝업에는 없어서** 기본 타임아웃
+       30 초를 통째로 기다리다 죽었다. 원복 스크립트가 그렇게 멈췄다. 이 읽기는 **진단용
+       곁가지**라 여기서 실패하면 안 된다 - 못 읽으면 빈 문자열로 두고 원래 흐름을 탄다.
     """
     save_button = page.locator('button[id="2"]', has_text="수정")
     save_button.click()
@@ -104,10 +212,14 @@ def _click_save_and_confirm(page: Page) -> None:
     ok_button = page.get_by_role("button", name="OK", exact=True)
     expect(ok_button).to_be_visible(timeout=5_000)
 
-    heading = page.get_by_role("dialog").get_by_role("heading").first.inner_text()
-    if "선택해주세요" in heading or "입력해주세요" in heading:
+    try:
+        popup_text = page.get_by_role("dialog").first.inner_text(timeout=1_000)
+    except Exception:
+        popup_text = ""
+    if "선택해주세요" in popup_text or "입력해주세요" in popup_text:
+        first_line = popup_text.strip().splitlines()[0]
         raise AssertionError(
-            f"[FAIL] 저장이 유효성 검사에서 막혔다: {heading!r} - "
+            f"[FAIL] 저장이 유효성 검사에서 막혔다: {first_line!r} - "
             "이관 정책과 무관하며, 저장 요청은 서버에 나가지 않았다"
         )
     ok_button.click()
@@ -132,15 +244,65 @@ def _expect_transfer_blocked(page: Page) -> None:
     close_button.click()
 
 
+def _save_with_branch_retry(page: Page, retries: int = 2) -> None:
+    """지점을 고르고 저장한다. 지점 때문에 막히면 **다시 고르고 다시 저장한다.**
+
+    지점 드롭다운은 업체를 바꿔도 즉시 안 갈리는데, 두 업체의 지점 이름이 같으면
+    갈렸는지조차 알 수 없다(`_wait_branch_options_refreshed` 참고). 그래서 "고르기 전에
+    완벽히 기다린다" 로는 못 막는 경우가 남는다.
+
+    대신 **틀렸을 때 확실히 알 수 있다** - 저장하면 "지점을 선택해주세요" 가 뜬다.
+    그 신호를 받아 재시도하는 쪽이, 못 가리는 상태를 실패로 단정하는 것보다 정확하다.
+
+    ★ 유효성 팝업이 뜨면 `_click_save_and_confirm` 은 [OK]를 **누르지 않고** 예외를 던진다.
+      그래서 재시도 전에 여기서 닫아준다 - 안 닫으면 다음 클릭이 팝업에 가려 막힌다.
+    """
+    for attempt in range(retries):
+        _select_any_branch(page)
+        try:
+            _click_save_and_confirm(page)
+            return
+        except AssertionError as e:
+            if "유효성 검사" not in str(e) or attempt == retries - 1:
+                raise
+            page.get_by_role("button", name="OK", exact=True).click()
+
+
+def _assert_not_already_there(page: Page, destination: str) -> None:
+    """이관하려는 업체에 **이미 소속돼 있으면** 즉시 실패시킨다.
+
+    2026-09-09 실측으로 드러난 구멍이다. 이 TC 들은 목적지를 하드코딩하고 원래 업체는
+    화면에서 읽는데, 앞선 실행이 원복에 실패해 차량이 목적지에 눌러앉아 있으면
+    `original == destination` 이 되어 **이관이 제자리 저장**이 된다. 그러면
+
+        이관     - 같은 업체를 다시 고르고 저장하니 성공
+        검증     - 파트너·리셀러가 원래부터 그 값이라 통과
+        teardown - current == original 이라 아무것도 안 함
+
+    전부 초록불인데 **이관 정책을 하나도 검증하지 않는다.** CLAUDE.md 위양성 장의
+    "자기충족 - 탐색 조건 == 검증 조건" 그 형태다. 실제로 900용1001·1002·1004 세 대가
+    목적지에 앉은 채였고, 그 상태로 7건이 통과하고 있었다.
+
+    전제가 깨진 것이지 기능이 깨진 게 아니므로 skip 이 아니라 **fail** 로 끊는다 -
+    skip 으로 두면 노란불 뒤에 "검증이 한 번도 안 돌았다" 가 숨는다.
+    """
+    current = _read_settled(_get_edit_field(page, "업체").locator(".text").first)
+    assert current != destination, (
+        f"[FAIL] 이미 {destination!r} 소속이라 이관을 검증할 수 없다 (전제 붕괴) - "
+        "앞선 실행이 원복에 실패해 차량이 목적지에 남아 있는 상태다. "
+        "원래 업체로 되돌린 뒤 다시 돌린다"
+    )
+
+
 @allure.step("차량 {car_number}를 {destination}로 이관 (성공 기대)")
 def _transfer_company_and_save(page: Page, car_number: str, destination: str) -> None:
     """모달이 열려있는 상태에서 업체를 destination으로 바꾸고 저장 + 완료 팝업까지 처리한다.
     저장하면 모달이 닫히므로, 곧장 재진입하는 대신 목록에서 업체 컬럼이 실제로 바뀐 걸 먼저
     확인해 저장이 끝났다는 신호로 삼는다 (재진입 직후엔 이전 값이 잠깐 남아있을 수 있음 —
     TC-053에서 같은 이유로 겪었던 문제와 동일)."""
+    _assert_not_already_there(page, destination)
     _select_transfer_company(page, destination)
-    _select_any_branch(page)
-    _click_save_and_confirm(page)
+    _save_with_branch_retry(page)
     _confirm_transfer_complete(page)
 
     company_col = _find_list_col_index(page, "업체명")
@@ -152,9 +314,9 @@ def _transfer_company_and_save(page: Page, car_number: str, destination: str) ->
 def _attempt_transfer_and_expect_blocked(page: Page, destination: str) -> None:
     """모달이 열려있는 상태에서 업체를 destination으로 바꾸고 저장을 시도한다.
     정책상 차단되는 조합이라 완료 팝업 대신 차단 알럿이 떠야 한다."""
+    _assert_not_already_there(page, destination)
     _select_transfer_company(page, destination)
-    _select_any_branch(page)
-    _click_save_and_confirm(page)
+    _save_with_branch_retry(page)
     _expect_transfer_blocked(page)
 
 
