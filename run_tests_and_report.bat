@@ -1,71 +1,78 @@
 @echo off
-REM QA í…ŒìŠ¤íŠ¸ ì‹¤í–‰ ë° ë¦¬í¬íŠ¸ ìƒì„± í†µí•© ìŠ¤í¬ë¦½íŠ¸ (Windows)
+REM ¡Ú ÀÌ ÆÄÀÏÀº CRLF ÁÙ¹Ù²Ş + cp949(ANSI) ÀÎÄÚµùÀ¸·Î ÀúÀåÇÑ´Ù. UTF-8 ·Î ¹Ù²ÙÁö ¸» °Í.
+REM   LF ·Î ÀúÀåÇÏ¸é cmd °¡ ÁÙ À§Ä¡¸¦ ³õÃÄ ¸í·ÉÀÌ Áß°£¿¡¼­ Àß¸°´Ù
+REM   ('ing'/'ure-results' °¡ ¸í·ÉÀ¸·Î ½ÇÇàµÇ´Â ¿À·ù - 2026-09-10 ½ÇÃø).
+REM   UTF-8 ·Î ÀúÀåÇÏ¸é ÇÑ±ÛÀÌ ±úÁø´Ù. chcp 65001 ·Îµµ ¸ø °íÄ£´Ù -
+REM   ÆÄÀÏ Áß°£¿¡ ÄÚµåÆäÀÌÁö¸¦ ¹Ù²Ù¸é ÆÄ¼­°¡ ¾î±ß³ª REM ÁÙ±îÁö ½ÇÇàµÈ´Ù (°°Àº ³¯ ½ÇÃø).
+REM   .sh ÂÊÀº ¹İ´ë·Î LF ¿©¾ß ÇÑ´Ù - .gitattributes °¡ µÑÀ» µû·Î °íÁ¤ÇÑ´Ù.
+REM QA Å×½ºÆ® ½ÇÇà ¹× ¸®Æ÷Æ® »ı¼º ÅëÇÕ ½ºÅ©¸³Æ® (Windows)
 REM
-REM   run_tests_and_report.bat                    ì½ê¸° ì „ìš© 61ê±´ë§Œ (ê¸°ë³¸)
-REM   run_tests_and_report.bat --allow-mutating   ì €ì¥í•˜ëŠ” 8ê±´ê¹Œì§€ 69ê±´ ì „ë¶€
+REM   run_tests_and_report.bat                    ÀĞ±â Àü¿ë 61°Ç¸¸ (±âº»)
+REM   run_tests_and_report.bat --allow-mutating   ÀúÀåÇÏ´Â 8°Ç±îÁö 69°Ç ÀüºÎ
 REM
-REM ë¶™ì¸ ì¸ìëŠ” %* ë¡œ pytest ì— ê·¸ëŒ€ë¡œ ë„˜ì–´ê°„ë‹¤. ë°ì´í„°ë¥¼ ë°”ê¾¸ëŠ” 8ê±´
-REM (@pytest.mark.mutating) ì€ ê²Œì´íŠ¸ê°€ ê¸°ë³¸ì ìœ¼ë¡œ skip í•˜ë¯€ë¡œ, í”Œë˜ê·¸ ì—†ì´
-REM ëŒë¦¬ë©´ ê²°ê³¼ì— 8 skipped ê°€ ëœ¬ë‹¤ - ê³ ì¥ì´ ì•„ë‹ˆë‹¤.
-REM ìì„¸í•œ ê²ƒì€ README 'ë°ì´í„°ë¥¼ ë°”ê¾¸ëŠ” í…ŒìŠ¤íŠ¸ëŠ” ê¸°ë³¸ì ìœ¼ë¡œ ì‹¤í–‰ë˜ì§€ ì•ŠìŠµë‹ˆë‹¤' ì°¸ê³ .
+REM ºÙÀÎ ÀÎÀÚ´Â %* ·Î pytest ¿¡ ±×´ë·Î ³Ñ¾î°£´Ù. µ¥ÀÌÅÍ¸¦ ¹Ù²Ù´Â 8°Ç
+REM (@pytest.mark.mutating) Àº °ÔÀÌÆ®°¡ ±âº»ÀûÀ¸·Î skip ÇÏ¹Ç·Î, ÇÃ·¡±× ¾øÀÌ
+REM µ¹¸®¸é °á°ú¿¡ 8 skipped °¡ ¶á´Ù - °íÀåÀÌ ¾Æ´Ï´Ù.
+REM ÀÚ¼¼ÇÑ °ÍÀº README 'µ¥ÀÌÅÍ¸¦ ¹Ù²Ù´Â Å×½ºÆ®´Â ±âº»ÀûÀ¸·Î ½ÇÇàµÇÁö ¾Ê½À´Ï´Ù' Âü°í.
 
-setlocal enabledelayedexpansion
+REM Áö¿¬È®Àå(enabledelayedexpansion)Àº ÄÑÁö ¾Ê´Â´Ù - echo ÀÇ [!] °¡ »ç¶óÁø´Ù.
+setlocal
 
 echo ============================================
-echo ğŸ§ª QA E2E í…ŒìŠ¤íŠ¸ ì‹¤í–‰ ë° ë¦¬í¬íŠ¸ ìƒì„±
+echo [*] QA E2E Å×½ºÆ® ½ÇÇà ¹× ¸®Æ÷Æ® »ı¼º
 echo ============================================
 
-REM 1. pytest ì‹¤í–‰ ë° Allure ê²°ê³¼ ìˆ˜ì§‘
+REM 1. pytest ½ÇÇà ¹× Allure °á°ú ¼öÁı
 echo.
-echo [1/4] pytest í…ŒìŠ¤íŠ¸ ì‹¤í–‰ ì¤‘...
+echo [1/4] pytest Å×½ºÆ® ½ÇÇà Áß...
 echo %* | findstr /C:"--allow-mutating" >nul
 if %errorlevel% equ 0 (
-    echo       [!] --allow-mutating ì¼œì§ - ë°ì´í„°ë¥¼ ë°”ê¾¸ëŠ” 8ê±´ì´ í•¨ê»˜ ë•ë‹ˆë‹¤.
-    echo           dev ì°¨ëŸ‰ 4ëŒ€ì˜ ì†Œì† ì—…ì²´ê°€ ì‹¤ì œë¡œ ë°”ë€Œì—ˆë‹¤ ëŒì•„ì˜µë‹ˆë‹¤.
+    echo       [!] --allow-mutating ÄÑÁü - µ¥ÀÌÅÍ¸¦ ¹Ù²Ù´Â 8°ÇÀÌ ÇÔ²² µ½´Ï´Ù.
+    echo           dev Â÷·® 4´ëÀÇ ¼Ò¼Ó ¾÷Ã¼°¡ ½ÇÁ¦·Î ¹Ù²î¾ú´Ù µ¹¾Æ¿É´Ï´Ù.
 ) else (
-    echo       ë°ì´í„°ë¥¼ ë°”ê¾¸ëŠ” 8ê±´ì€ ê±´ë„ˆëœë‹ˆë‹¤ ^(ê²Œì´íŠ¸ ê¸°ë³¸ê°’ - 8 skipped ëŠ” ì •ìƒ^).
-    echo       í•¨ê»˜ ëŒë¦¬ë ¤ë©´: run_tests_and_report.bat --allow-mutating
+    echo       µ¥ÀÌÅÍ¸¦ ¹Ù²Ù´Â 8°ÇÀº °Ç³Ê¶İ´Ï´Ù ^(°ÔÀÌÆ® ±âº»°ª - 8 skipped ´Â Á¤»ó^).
+    echo       ÇÔ²² µ¹¸®·Á¸é: run_tests_and_report.bat --allow-mutating
 )
 pytest -v --alluredir=allure-results %*
 if %errorlevel% neq 0 (
-    REM pytestê°€ ì‹¤íŒ¨í•´ë„ ê³„ì† ì§„í–‰ (ì´ë¯¸ ì¼ë¶€ ê²°ê³¼ê°€ ìˆì„ ìˆ˜ ìˆìŒ)
+    REM pytest°¡ ½ÇÆĞÇØµµ °è¼Ó ÁøÇà (ÀÌ¹Ì ÀÏºÎ °á°ú°¡ ÀÖÀ» ¼ö ÀÖÀ½)
 )
 
-REM 2. Allure JSON í›„ì²˜ë¦¬
+REM 2. Allure JSON ÈÄÃ³¸®
 echo.
-echo [2/4] Allure ê²°ê³¼ í›„ì²˜ë¦¬ ì¤‘...
+echo [2/4] Allure °á°ú ÈÄÃ³¸® Áß...
 python tools\postprocess_allure_results.py allure-results
 
-REM 3. ê³µì‹ Allure ë¦¬í¬íŠ¸ ìƒì„± (ê¸°ë³¸ ì‚°ì¶œë¬¼)
+REM 3. °ø½Ä Allure ¸®Æ÷Æ® »ı¼º (±âº» »êÃâ¹°)
 echo.
-echo [3/4] ê³µì‹ Allure ë¦¬í¬íŠ¸ ìƒì„± ì¤‘...
+echo [3/4] °ø½Ä Allure ¸®Æ÷Æ® »ı¼º Áß...
 where allure >nul 2>nul
 if %errorlevel% equ 0 (
     if exist allure-report rmdir /s /q allure-report
     allure generate allure-results --output allure-report
-    echo âœ“ Allure ë¦¬í¬íŠ¸: allure-report\index.html
+    echo [OK] Allure ¸®Æ÷Æ®: allure-report\index.html
 ) else (
-    echo âŠ™ Allure CLIê°€ ì—†ì–´ ê³µì‹ ë¦¬í¬íŠ¸ë¥¼ ê±´ë„ˆëœë‹ˆë‹¤: npm i -g allure
+    echo [--] Allure CLI°¡ ¾ø¾î °ø½Ä ¸®Æ÷Æ®¸¦ °Ç³Ê¶İ´Ï´Ù: npm i -g allure
 )
 
-REM 4. QA-ì¹œí™”ì  ì»¤ìŠ¤í…€ HTML ë¦¬í¬íŠ¸ ìƒì„± (ì¶”ê°€ ì‚°ì¶œë¬¼)
+REM 4. QA-Ä£È­Àû Ä¿½ºÅÒ HTML ¸®Æ÷Æ® »ı¼º (Ãß°¡ »êÃâ¹°)
 echo.
-echo [4/4] QA ì¹œí™”ì  ì»¤ìŠ¤í…€ ë¦¬í¬íŠ¸ ìƒì„± ì¤‘...
+echo [4/4] QA Ä£È­Àû Ä¿½ºÅÒ ¸®Æ÷Æ® »ı¼º Áß...
 python tools\generate_qa_report.py allure-results -o qa-report.html
 if %errorlevel% neq 0 (
-    echo âŠ™ ì»¤ìŠ¤í…€ ë¦¬í¬íŠ¸ ìƒì„± ì‹¤íŒ¨ â€” ê³µì‹ Allure ë¦¬í¬íŠ¸ëŠ” ìœ„ì—ì„œ ì´ë¯¸ ìƒì„±ë¨
+    echo [--] Ä¿½ºÅÒ ¸®Æ÷Æ® »ı¼º ½ÇÆĞ - °ø½Ä Allure ¸®Æ÷Æ®´Â À§¿¡¼­ ÀÌ¹Ì »ı¼ºµÊ
 )
 
 echo.
 echo ============================================
-echo âœ“ ë¦¬í¬íŠ¸ ìƒì„± ì™„ë£Œ!
+echo [OK] ¸®Æ÷Æ® »ı¼º ¿Ï·á!
 echo ============================================
 echo.
-echo ğŸ“‹ ê³µì‹ Allure ë¦¬í¬íŠ¸ (ê¸°ë³¸):
+echo °ø½Ä Allure ¸®Æ÷Æ® (±âº»):
 echo    allure-report\index.html
-echo    ì—´ê¸°: allure open allure-report
+echo    ¿­±â: allure open allure-report
 echo.
-echo ğŸ“Š QA-ì¹œí™”ì  ì»¤ìŠ¤í…€ ë¦¬í¬íŠ¸ (ì¶”ê°€):
+echo QA-Ä£È­Àû Ä¿½ºÅÒ ¸®Æ÷Æ® (Ãß°¡):
 echo    qa-report.html
 echo.
 
