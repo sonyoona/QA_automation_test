@@ -36,18 +36,13 @@ def test_TC103_login_fail_no_permission(page: Page) -> None:
 @allure.label("testcase", "TC-114")
 def test_TC114_login_success_and_refresh_session(auth_state: str) -> None:
     """
-    conftest.py의 auth_state fixture를 그대로 씁니다 — auth.json이 아직 신선하면
-    로그인을 건너뛰고 그 파일을 그대로 재사용하며, 만료됐거나 없으면 그때만 실제
-    로그인(+사람이 인증번호 직접 입력)을 수행해서 새로 저장합니다.
-
-    ※ 로그인이 실제로 실행되는 경우엔 반자동입니다. 2단계 인증번호는 실제 휴대폰으로
-      받아야 해서 코드가 대신할 수 없습니다. 로그인 전용 headed 브라우저가 자동으로
-      뜨니(--headed 안 줘도 됩니다), 그 창에서 인증번호를 직접 입력하고 [확인]을 눌러주세요.
-      auth.json이 이미 신선하면 이 과정 없이 바로 통과합니다.
-
     GIVEN  STAFF 1단계 로그인 화면에서, 아이디·비밀번호가 일치하는 정상 계정(adminyoona)일 때
     WHEN   (필요할 때만) 아이디·비밀번호를 자동으로 입력해 로그인하고, 뜬 2단계 인증 화면에서
            사람이 휴대폰으로 받은 인증번호를 직접 입력하고 [확인]을 누르면
     THEN   관리자 메인화면으로 이동해 세션이 auth.json에 저장되어 있다
+
+    ※ 실제로 로그인이 필요할 때만 **반자동**입니다 - 인증번호는 코드가 대신 못 칩니다.
+      전용 headed 브라우저가 자동으로 뜨니(`--headed` 불필요) 그 창에서 입력하면 됩니다.
+      세션이 살아 있으면 이 과정 없이 통과합니다: docs/notes/code-notes/로그인-테스트-노트.md
     """
     assert os.path.exists(auth_state)

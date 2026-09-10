@@ -143,16 +143,12 @@ def _go_to_last_page(page: Page) -> None:
 
 @allure.step("현재 페이지 전체 행의 리셀러가 {target_reseller}인지 확인")
 def _assert_all_rows_have_reseller(page: Page, col_index: int, target_reseller: str) -> None:
-    """현재 화면(한 페이지)의 모든 행에 대해 리셀러 컬럼 값이 target_reseller와 정확히 같은지 전수 확인한다.
+    """현재 화면(한 페이지)의 모든 행이 target_reseller 와 정확히 같은지 전수 확인한다.
 
-    행 개수를 `rows.count()`가 아니라 `_get_real_row_count()`로 세는 이유가 둘이다.
-    ① "조회 결과가 없습니다" 안내 행(colspan)을 데이터 행으로 오해하지 않는다.
-    ② 같은 것(=행 개수)을 읽는 방법이 파일 안에서 하나로 유지된다 — TC마다 읽는 방법이
-       갈리면 한쪽만 고쳐지고 조용히 어긋난다.
-
-    그리고 0건이면 실패로 끊는다. 루프가 0회 돌면 검증이 통째로 사라지는데, 그때 결과는
-    "아무것도 확인 안 함"이 아니라 "통과"로 보인다(위양성). TC-086이 1페이지에서만
-    `filtered_row_count > 0`을 확인하므로, 중간·마지막 표본 페이지에는 하한이 없다.
+    `rows.count()` 가 아니라 `_get_real_row_count()` 로 세는 이유 - "조회 결과가 없습니다"
+    안내 행(colspan)을 데이터 행으로 오해하지 않고, **같은 것을 읽는 방법을 하나로** 유지한다.
+    0건이면 실패로 끊는다(루프가 0회 돌면 검증이 사라지는데 결과는 "통과" 로 보인다 -
+    CLAUDE.md 위양성 "0회 루프", docs/notes/code-notes/모니터-리셀러-필터-테스트-노트.md "문제 5").
     """
     rows = page.locator("table").first.locator("tbody tr")
     row_count = _get_real_row_count(page)

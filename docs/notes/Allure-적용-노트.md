@@ -71,14 +71,14 @@ def _save_edit_modal(page: Page) -> None: ...
 - 세션이 서버에서 무효화됐을 때 로그인 화면이 떠 있던 것 → 스크린샷으로 바로 확인 가능
 
 ```python
-# conftest.py — 실패한 그 순간(call 단계)에 훅에서 바로 첨부한다
+# conftest.py — 실패한 그 순간에 훅에서 바로 첨부한다
 @pytest.hookimpl(wrapper=True, tryfirst=True)
 def pytest_runtest_makereport(item, call):
     rep = yield
-    if rep.when == "call" and rep.failed:
-        page = item.funcargs.get("logged_in_page")
+    if rep.when in ("setup", "call") and rep.failed:
+        page = getattr(item, "_page", None)
         if page is not None:
-            _attach_page_evidence(page, getattr(item, "_console_logs", []))
+            _attach_page_evidence(page, getattr(item, "_console_logs", []), rep.when)
     return rep
 
 
@@ -91,6 +91,7 @@ def logged_in_page(browser: Browser, auth_state: str, request) -> Generator[Page
     page.on("console", lambda msg: console_logs.append(f"[{msg.type}] {msg.text}"))
     page.on("pageerror", lambda exc: console_logs.append(f"[pageerror] {exc}"))
     request.node._console_logs = console_logs   # 훅이 꺼내 쓸 수 있게 테스트 객체에 달아둠
+    request.node._page = page                   # 같은 이유. funcargs 로는 못 찾는 경우가 있다
 
     yield page
 
@@ -112,7 +113,17 @@ def logged_in_page(browser: Browser, auth_state: str, request) -> Generator[Page
 | fixture teardown에서 attach | Tear down → `logged_in_page::1` 안쪽 (Attachments 탭은 0) |
 | **훅의 call 단계에서 attach** | **테스트의 Attachments 탭** (실패 시점 화면·주소·콘솔 로그 3건) |
 
-`item.funcargs`로 그 테스트가 실제로 쓴 `logged_in_page`를 꺼내오고, 콘솔 로그는 fixture가 `request.node._console_logs`에 달아둔 걸 씁니다.
+콘솔 로그는 fixture가 `request.node._console_logs`에 달아둔 걸 씁니다.
+
+**`page`도 같은 방식으로 fixture가 달아둔 `request.node._page`에서 꺼냅니다** (2026-09-07 변경 — 그전에는 `item.funcargs.get("logged_in_page")`였습니다). `funcargs`에는 **테스트 함수가 직접 요청한 fixture만** 올라오기 때문에, `logged_in_page`를 테스트가 아니라 다른 fixture(`fs` 등)가 대신 받는 구조에서는 `None`이 나옵니다. 그러면 실패해도 증거가 하나도 안 남습니다.
+
+### `call`뿐 아니라 `setup` 단계도 함께 본다 (2026-09-07 추가)
+
+fixture 안에서 화면 진입이 실패하면 pytest는 그 테스트를 `ERROR`(Allure에서는 `broken`)로 끝내는데, 훅이 `when == "call"`만 보면 **그 경우엔 증거가 하나도 안 남습니다.** 2026-09-07에 현장 서비스 5건이 진입 단계에서 전부 깨졌을 때 리포트에 스크린샷이 없어서, 브라우저를 따로 띄워 메뉴를 직접 확인해야 했습니다.
+
+첨부 이름에 단계를 적는 이유도 같습니다 — setup 실패는 "검증하다 틀린 것"이 아니라 **"검증까지 가지도 못한 것"**이라, 스크린샷을 보는 사람이 그 차이를 알아야 합니다(`사전조건(setup) 실패 시점 화면`).
+
+로그인 자체가 실패해서 `logged_in_page`가 아직 안 만들어졌으면 붙일 화면이 없으므로 조용히 넘어갑니다.
 
 `_attach_page_evidence`는 첨부 자체가 실패해도(이미 닫힌 페이지 등) **예외를 삼키고 넘어갑니다** — 여기서 에러가 나면 정작 원래 실패 원인이 가려지기 때문입니다.
 
