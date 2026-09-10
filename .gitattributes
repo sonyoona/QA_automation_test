@@ -1,0 +1,5 @@
+# 줄바꿈을 파일 종류별로 고정한다. core.autocrlf 설정이 무엇이든 이쪽이 이긴다.
+# .sh  : Mac/Linux 에서 실행되므로 LF   (CRLF 면 'bad interpreter' 로 죽는다)
+# .bat : Windows cmd 가 읽으므로 CRLF  (LF 면 명령이 중간에서 잘린다 - 2026-09-10 실측)
+*.sh   text eol=lf
+*.bat  text eol=crlf
