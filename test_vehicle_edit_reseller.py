@@ -2,8 +2,10 @@
 
 import os
 import re
+from typing import Callable, Generator
 
 import allure
+import pytest
 from playwright.sync_api import Locator, Page, expect
 
 STAFF_URL = os.getenv("STAFF_URL")
@@ -78,6 +80,66 @@ def _find_list_col_index(page: Page, header_text: str) -> int:
     return headers.index(header_text)
 
 
+def _read_settled(field_text: Locator) -> str:
+    """모달이 열린 직후엔 값이 비동기로 채워지는 도중이라, 곧바로 `inner_text()`로 읽으면
+    플레이스홀더("선택")를 실제 값으로 착각할 수 있다(실측으로 확인 — 원복 대상 값을 "선택"으로
+    잘못 캡처했다). 값이 "선택"에서 벗어날 때까지 기다린 뒤 읽는다.
+
+    같은 모달을 쓰는 test_vehicle_company_transfer.py도 이 함수를 import해서 쓴다 —
+    같은 것을 읽는 방법이 파일마다 갈리면 한쪽만 고쳐지고 조용히 어긋난다."""
+    expect(field_text).not_to_have_text("선택", timeout=10_000)
+    return field_text.inner_text()
+
+
+@allure.step("차량 {car_number} 의 리셀러를 {original_reseller} 로 원복")
+def _restore_reseller(page: Page, car_number: str, original_reseller: str) -> None:
+    """차량의 리셀러를 원래 값으로 되돌린다. 이미 원래 값이면 아무것도 하지 않는다.
+
+    `_open_carmgmt_edit_modal`이 `page.goto()`로 시작하므로, 테스트가 모달이나 알럿을 열어둔
+    채 깨졌어도 그 상태를 신경 쓰지 않고 부를 수 있다.
+
+    이미 원래 값이면 저장을 누르지 않는다 — 되돌릴 게 없는데 [수정]을 누르는 것 자체가
+    규칙이 막는 동작이다. 되돌린 뒤에는 목록에서 실제로 반영됐는지 확인한다. "예외가 안 났다"는
+    "되돌렸다"가 아니기 때문이다(이관 TC에서 이걸로 한 번 속았다).
+    """
+    _open_carmgmt_edit_modal(page, car_number)
+    reseller_text = _get_edit_field(page, "리셀러 선택").locator(".text").first
+    if _read_settled(reseller_text) == original_reseller:
+        return
+
+    _select_reseller(page, original_reseller)
+    _save_edit_modal(page)
+
+    reseller_col = _find_list_col_index(page, "리셀러")
+    row = page.locator("table").first.locator("tbody tr").filter(has_text=car_number)
+    expect(row.locator("td").nth(reseller_col)).to_have_text(original_reseller, timeout=10_000)
+
+
+@pytest.fixture
+def reseller_guard(logged_in_page: Page) -> Generator[Callable[[str, str], None], None, None]:
+    """리셀러 값을 바꾸는 TC가 바꾼 값을, **테스트가 어떻게 끝나든** 원래대로 되돌린다.
+
+    전에는 원복이 테스트 본문 마지막 줄에 있었다. 그러면 중간에서 실패했을 때 그 줄에 도달하지
+    못해 **값이 바뀐 채로 남는다** — 다음 실행은 다른 전제로 시작하게 되고, 그 뒤의 실패는 원인
+    찾기가 어렵다. 이관 TC의 `company_guard`와 같은 형태다.
+
+    쓰는 법 — 원래 값을 읽은 직후에 등록해 둔다. 그 다음부터는 무슨 일이 나도 teardown이 책임진다.
+
+    원복에 실패하면 **예외를 삼키지 않는다** — teardown에서 그대로 터져 pytest가 그 테스트를
+    ERROR로 표시한다. 정리 실패를 조용히 넘기면 "통과했는데 데이터는 바뀐 채"가 된다.
+    """
+    page = logged_in_page
+    original: dict[str, str] = {}
+
+    def guard(car_number: str, original_reseller: str) -> None:
+        original[car_number] = original_reseller
+
+    yield guard
+
+    for car_number, original_reseller in original.items():
+        _restore_reseller(page, car_number, original_reseller)
+
+
 @allure.title("TC-051 | 차량 수정 모달 파트너 항목(수정 불가) 노출 확인")
 @allure.label("testcase", "TC-051")
 def test_TC051_vehicle_edit_partner_field_visible(logged_in_page: Page) -> None:
@@ -115,9 +177,12 @@ def test_TC052_vehicle_edit_reseller_field_visible(logged_in_page: Page) -> None
     expect(reseller_field).to_be_visible()
 
 
+@pytest.mark.mutating
 @allure.title("TC-053 | 리셀러 값 변경(LG U+↔커넥트) 및 저장 반영 확인")
 @allure.label("testcase", "TC-053")
-def test_TC053_vehicle_edit_reseller_change_and_revert_when_partner_lg_uplus(logged_in_page: Page) -> None:
+def test_TC053_vehicle_edit_reseller_change_and_revert_when_partner_lg_uplus(
+    logged_in_page: Page, reseller_guard: Callable[[str, str], None]
+) -> None:
     """
     GIVEN  STAFF 웹에 로그인된 상태에서 차량관리>차량관리 화면에 진입해,
            파트너와 리셀러가 모두 [LG U+]인 차량의 [수정] 버튼을 클릭하면
@@ -126,9 +191,15 @@ def test_TC053_vehicle_edit_reseller_change_and_revert_when_partner_lg_uplus(log
     THEN   각 저장 직후 재진입했을 때 리셀러 값이 정확히 반영되어 있고,
            그 과정 내내 파트너는 LG U+로 유지된다
 
-    ※ 이 TC는 실제로 값을 저장하는 차량이라, 마지막에 원래 값(LG U+)으로 복원하는 것까지가
-      테스트 시나리오의 일부다 (CAR_PARTNER_LG_UPLUS_RESELLER_LG 전용 차량이라 다른 테스트에
-      영향 없음).
+    ★ 이 파일에서 **유일하게 [수정] 저장을 실제로 실행하는 TC** 다 (`@pytest.mark.mutating`).
+      그래서 `--allow-mutating` 없이는 돌지 않고, 허용된 dev 접속처가 아니면 막힌다
+      (conftest.py 의 `_mutating_gate`).
+
+    본문 2단계(커넥트 -> LG U+)는 정리가 아니라 **검증 시나리오의 일부**다 — 양방향 변경이
+    다 반영되는지를 보는 것이라 지우면 안 된다. `reseller_guard` 는 그 위에 덧대는 안전망이라,
+    1단계 저장 뒤 어디서 깨지든 값을 되돌린다(이미 원래 값이면 아무것도 하지 않는다).
+
+    전용 차량(CAR_PARTNER_LG_UPLUS_RESELLER_LG)만 쓰므로 다른 테스트에 영향이 없다.
     """
     page = logged_in_page
     car = CAR_PARTNER_LG_UPLUS_RESELLER_LG
@@ -139,7 +210,10 @@ def test_TC053_vehicle_edit_reseller_change_and_revert_when_partner_lg_uplus(log
     partner_text = _get_edit_field(page, partner_field_selector).locator(".text").first
     expect(partner_text).to_have_text("LG U+")
     reseller_text = _get_edit_field(page, "리셀러 선택").locator(".text").first
+    # 앞선 실행이 원복에 실패해 커넥트로 남아 있으면 여기서 즉시 실패한다 — 전제가 깨진 채로
+    # 진행하면 "LG U+ -> 커넥트" 가 제자리 저장이 되어 검증이 공허해진다.
     expect(reseller_text).to_have_text("LG U+")
+    reseller_guard(car, _read_settled(reseller_text))
 
     _select_reseller(page, "커넥트")
     _save_edit_modal(page)

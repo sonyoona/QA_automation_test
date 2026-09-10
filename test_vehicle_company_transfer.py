@@ -4,13 +4,14 @@ from typing import Callable, Generator
 
 import allure
 import pytest
-from playwright.sync_api import Locator, Page, expect
+from playwright.sync_api import Page, expect
 
 from test_vehicle_edit_reseller import (
     CAR_PARTNER_CONNECT,
     _find_list_col_index,
     _get_edit_field,
     _open_carmgmt_edit_modal,
+    _read_settled,
 )
 from test_vehicle_register_reseller import COMPANY_PARTNERS
 
@@ -44,13 +45,8 @@ def _partner_of(company_name: str) -> str:
     return COMPANY_PARTNERS.get(company_name) or TRANSFER_ONLY_COMPANY_PARTNERS[company_name]
 
 
-def _read_settled(field_text: Locator) -> str:
-    """모달이 열린 직후엔 "업체"/"파트너 선택" 값이 비동기로 채워지는 도중이라, 곧바로
-    inner_text()로 읽으면 플레이스홀더("선택")를 실제 값으로 착각할 수 있다(실측으로 확인 —
-    TC-065/066에서 "선택"을 원래 업체명으로 잘못 캡처해 원복 검색이 "No results found"로
-    실패했다). 값이 "선택"에서 벗어날 때까지 기다린 뒤 읽는다."""
-    expect(field_text).not_to_have_text("선택", timeout=10_000)
-    return field_text.inner_text()
+# `_read_settled` 는 test_vehicle_edit_reseller.py 것을 import 해서 쓴다 — 같은 모달의 같은
+# 필드를 읽는 것이라 구현이 두 벌이면 한쪽만 고쳐진다. 원래 여기에도 같은 함수가 있었다.
 
 
 # 지점 드롭다운의 옵션을 브라우저 안에서 직접 읽는 JS. 닫혀 있어도 DOM 에는 있으므로
