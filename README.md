@@ -50,6 +50,8 @@ Playwright + pytest 기반 웹 관리자 시스템 UI 자동화 테스트입니�
 > 화면이 바뀌어도 유지되는 테스트 설계 원칙(셀렉터 전략, 검증 범위, skip 기준 등)은 [`CLAUDE.md`](./CLAUDE.md)에, 화면별 세부 배경은 `docs/notes/code-notes/`에 정리되어 있습니다.
 >
 > **전체가 어떻게 맞물려 도는지**(실행 흐름·fixture 사슬·대기·리포트 파이프라인)는 [`docs/notes/자동화-구조와-흐름.md`](./docs/notes/자동화-구조와-흐름.md)에 그림과 함께 있습니다 — 코드를 처음 여는 사람이 먼저 볼 곳입니다.
+>
+> **테스트 내용이 아니라 실행 자체가 안 될 때**(배치 파일이 깨짐 · 전 테스트 ERROR · 2FA 창이 안 뜸 · 줄바꿈/인코딩)는 [`docs/notes/실행-트러블슈팅-노트.md`](./docs/notes/실행-트러블슈팅-노트.md)에 증상별로 정리해 뒀습니다.
 
 <br>
 
@@ -112,7 +114,9 @@ dev 환경에서 업체 이름만으로는 소속 파트너를 알 수 없어서
 
 같은 모달을 다루기 때문에 `test_vehicle_edit_reseller.py`의 모달 진입·필드 탐색 헬퍼를 그대로 import해서 재사용합니다.
 
-TC-059~066은 "리셀러·인수 업체 파트너 조합에 따라 업체 이관이 실제로 저장되는지/차단되는지"를 검증합니다 — TC-057/058과 달리 [수정] 저장까지 실행하는 mutating TC입니다. TC-051~058이 쓰는 차량과 겹치지 않도록 dev에 등록해둔 전용 차량 4대(`900용1001~1004`)를 쓰고, 저장에 성공하는 TC는 검증 후 원래 업체로 되돌려 반복 실행 가능하게 합니다. 자세한 내용은 `docs/notes/code-notes/차량업체변경-테스트-노트.md` 참고.
+TC-059~066은 "리셀러·인수 업체 파트너 조합에 따라 업체 이관이 실제로 저장되는지/차단되는지"를 검증합니다 — TC-057/058과 달리 [수정] 저장까지 실행하는 mutating TC입니다. TC-051~058이 쓰는 차량과 겹치지 않도록 dev에 등록해둔 전용 차량 4대(`900용1001~1004`)를 쓰고, `company_guard` fixture 의 teardown 이 원래 업체로 되돌려 반복 실행이 가능합니다 — 통과든 실패든 예외든 반드시 돕니다.
+
+**이 8건은 `pytest -v` 로는 실행되지 않습니다.** 데이터를 바꾸기 때문에 기본이 "안 돎" 이고, 돌리려면 명령에 `--allow-mutating` 을 붙여야 합니다 (아래 "실행 방법" 참고). 자세한 내용은 `docs/notes/code-notes/차량업체변경-테스트-노트.md` 참고.
 
 ### 6. 현장 서비스 화면 노출 검증 (`test_field_service.py`)
 
@@ -182,6 +186,9 @@ run_tests_and_report.bat
 # Mac/Linux
 bash run_tests_and_report.sh
 ```
+
+붙인 인자는 pytest 로 그대로 넘어갑니다. 데이터를 바꾸는 8건까지 함께 돌리려면
+뒤에 `--allow-mutating` 을 붙입니다 (아래 "실행 방법" 참고).
 
 ### 1. 공식 Allure 3 리포트 (기본 산출물)
 
@@ -277,6 +284,29 @@ pytest test_monitor_reseller_filter.py -v
 
 최초 실행 시에는 OTP 입력을 위해 브라우저 창이 열립니다.
 인증번호를 입력하면 세션이 `auth.json`에 저장되고, 이후 실행에서는 재사용됩니다.
+
+<br>
+
+### 데이터를 바꾸는 테스트는 기본적으로 실행되지 않습니다
+
+`test_vehicle_company_transfer.py` 의 TC-059~066 여덟 건은 차량 수정 모달에서 **[수정] 저장을
+실제로 실행**해 dev 데이터를 바꿉니다(`@pytest.mark.mutating`). 모르고 돌리는 것을 막으려고
+**기본값이 "실행 안 함"** 입니다 — `pytest -v` 를 그냥 돌리면 그 8건은 skip 됩니다.
+
+```bash
+pytest -v                                 # 61 passed, 8 skipped  ← 평소
+pytest --allow-mutating -v                # 69 전부 (읽기 전용 61 + 저장하는 8)
+pytest -m mutating --allow-mutating -v    # 저장하는 8건만
+```
+
+- `-m` 은 **고르는** 것이고 `--allow-mutating` 은 **돌려도 되는지**를 정하는 별개의 단계입니다.
+  그래서 `pytest -m mutating -v` 만 붙이면 **하나도 안 돕니다**(8 skipped, 61 deselected).
+- 플래그는 **그 명령 한 줄에만** 살아서 끄는 것을 잊을 수 없습니다. 여러 번 반복해 돌릴 때는
+  셸 환경변수(`ALLOW_MUTATING_TESTS=true`)도 쓸 수 있지만, 그만큼 오래 살아남습니다.
+- 허용을 켰더라도 `.env` 의 `STAFF_URL` 이 **`conftest.py` 의 `MUTATING_ALLOWED_HOSTS` 에
+  없는 주소면 실행을 막습니다**(setup `ERROR`). dev 주소가 바뀌면 그 목록을 고쳐야 합니다.
+
+자세한 배경은 `CLAUDE.md` 의 "변경성(mutating) 테스트 준비" 장을 보세요.
 
 <br>
 

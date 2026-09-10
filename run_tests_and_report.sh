@@ -1,5 +1,13 @@
 #!/bin/bash
 # QA 테스트 실행 및 리포트 생성 통합 스크립트
+#
+#   ./run_tests_and_report.sh                    읽기 전용 61건만 (기본)
+#   ./run_tests_and_report.sh --allow-mutating   저장하는 8건까지 69건 전부
+#
+# 붙인 인자는 "$@" 로 pytest 에 그대로 넘어간다. 데이터를 바꾸는 8건
+# (@pytest.mark.mutating) 은 게이트가 기본적으로 skip 하므로, 플래그 없이
+# 돌리면 결과에 8 skipped 가 뜬다 - 고장이 아니다.
+# 자세한 것은 README '데이터를 바꾸는 테스트는 기본적으로 실행되지 않습니다' 참고.
 
 set -e
 
@@ -10,7 +18,20 @@ echo "============================================"
 # 1. pytest 실행 및 Allure 결과 수집
 echo ""
 echo "[1/4] pytest 테스트 실행 중..."
-pytest -v --alluredir=allure-results "$@" || true
+case " $* " in
+    *" --allow-mutating "*)
+        echo "      [!] --allow-mutating 켜짐 - 데이터를 바꾸는 8건이 함께 돕니다."
+        echo "          dev 차량 4대의 소속 업체가 실제로 바뀌었다 돌아옵니다." ;;
+    *)
+        echo "      데이터를 바꾸는 8건은 건너뜁니다 (게이트 기본값 - 8 skipped 는 정상)."
+        echo "      함께 돌리려면: ./run_tests_and_report.sh --allow-mutating" ;;
+esac
+# --clean-alluredir 로 지난 실행 결과를 지우고 시작한다. 안 지우면 결과가 쌓여
+# Allure 가 서로 다른 실행의 같은 TC 를 'Retries' 로 묶어 보여준다 - 이번에 skip 된
+# TC 를 눌렀는데 지난 실행의 실패가 나와서 '안 돌린 TC 가 왜 빨간불이냐' 가 된다
+# (2026-09-10 실측 - 결과 폴더에 5개 실행분 147건이 섞여 있었다).
+# allure-report 는 원래 매번 지우고 있었는데 allure-results 만 빠져 있었다.
+pytest -v --alluredir=allure-results --clean-alluredir "$@" || true
 
 # 2. Allure JSON 후처리 (testClass/testMethod 라벨 추가, 한글 요약)
 echo ""
