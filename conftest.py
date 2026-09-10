@@ -306,8 +306,15 @@ def auth_state(browser_type: BrowserType, pytestconfig: pytest.Config) -> str:
     if os.path.exists(AUTH_STATE_PATH):
         os.remove(AUTH_STATE_PATH)
 
+    # `getplugin` 은 캡처를 시작시키는 게 아니라 **이미 일하고 있는 그 객체**를 받아온다.
+    # import 로 새로 만들면 지금까지 가둬둔 출력을 모르는 딴 객체가 되어 아무 일도 안 한다.
+    # None 은 `-p no:capture` 로 캡처 플러그인 자체를 뺐을 때만 나온다 (`-s` 여도 객체는 있다).
     capman = pytestconfig.pluginmanager.getplugin("capturemanager")
     if capman is not None:
+        # in_=True 는 stdin 도 함께 연다. 지금은 인증번호를 터미널이 아니라 브라우저 창에
+        # 치므로 **효과가 없다** - pytest 의 대화형 예제가 이렇게 쓰므로 관례를 따른 것이다
+        # (CLAUDE.md "관례이고 비용이 0이면" 참고). 안 열어도 멈추지 않고 OSError 로 즉시
+        # 죽으므로, 이걸 근거로 '위험해서 넣었다' 고 읽지 말 것.
         capman.suspend_global_capture(in_=True)
     try:
         _login_and_save(browser_type)
