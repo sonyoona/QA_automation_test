@@ -123,7 +123,13 @@ def _mutating_gate(request: pytest.FixtureRequest) -> None:
 
 
 def _auth_state_is_fresh(path: str) -> bool:
-    """auth.json이 있고, 안에 든 쿠키가 아직 만료 전인지 확인."""
+    """auth.json이 있고, 안에 든 쿠키가 아직 만료 전인지 확인.
+
+    ★ 이것만으로는 "로그인 상태" 를 판정할 수 없다. 파일에 적힌 만료 시각을 보는 것뿐이라
+      서버가 세션을 이미 끊었는지는 알 수 없고, 세션 쿠키(`expires == -1`)는 이 함수가
+      **영원히 살아 있다고 답한다.** 실제 판정은 `_session_alive()` 가 화면에 물어서 한다 -
+      이 함수는 그 앞의 값싼 예비 검사다 (2026-09-10 실측, 그쪽 docstring 참고).
+    """
     if not os.path.exists(path):
         return False
     with open(path, encoding="utf-8") as f:
@@ -244,11 +250,70 @@ def _login_and_save(browser_type: BrowserType) -> None:
         login_browser.close()
 
 
+def _session_alive(browser_type: BrowserType, path: str) -> bool:
+    """저장된 세션으로 **실제로 로그인이 되는지** 화면에 물어본다.
+
+    ★ 쿠키 만료 시각만 믿으면 안 된다 - 2026-09-10 실측. auth.json 의 쿠키는 11:54 까지
+      유효했는데 10:01 에 시작한 전체 실행이 **전부 ERROR** 였다. 서버가 그 세션을 이미
+      무효화했기 때문이다(계정당 단일 세션 - 사람이 브라우저로 같은 계정에 로그인하거나
+      pytest 를 두 개 돌리면 앞 세션이 끊긴다. `CLAUDE.md` "스택 & 실행" 참고).
+
+      로컬 파일만 보는 `_auth_state_is_fresh` 는 그걸 알 수가 없어서 "살아 있다" 고 답했고,
+      그래서 **재로그인이 일어나지 않았다.** 사람은 2FA 입력 창이 뜨기를 기다렸는데 화면은
+      안 뜨고, 모든 TC 가 로그인 화면에서 GNB 를 기다리다 30초씩 타임아웃했다 -
+      증상이 '전부 실패' 라 코드 버그로 보이지만 원인은 세션이다.
+
+    그래서 파일이 아니라 화면에 묻는다. **테스트가 실제로 의존하는 것과 같은 신호**(GNB 상위
+    메뉴)를 보므로 새로 단정하는 것이 없다 - 로그인 화면에는 이 링크가 없어서 타임아웃되고,
+    그것을 '세션 죽음' 으로 읽는다.
+
+    비용은 headless 브라우저 1회(약 3~5초)이고, 막는 것은 20분짜리 전체 ERROR 실행이다.
+    """
+    browser = browser_type.launch()
+    context = browser.new_context(storage_state=path)
+    page = context.new_page()
+    try:
+        page.goto(STAFF_URL)
+        expect(
+            page.locator("a").filter(has_text=re.compile(r"^차량관리$")).first
+        ).to_be_visible(timeout=15000)
+        return True
+    except Exception:
+        return False
+    finally:
+        context.close()
+        browser.close()
+
+
 @pytest.fixture(scope="session")
-def auth_state(browser_type: BrowserType) -> str:
-    """세션당 최대 1번만 로그인. auth.json이 살아있으면 그대로 재사용."""
-    if not _auth_state_is_fresh(AUTH_STATE_PATH):
+def auth_state(browser_type: BrowserType, pytestconfig: pytest.Config) -> str:
+    """세션당 최대 1번만 로그인. 저장된 세션이 **실제로 살아 있을 때만** 재사용한다.
+
+    검사가 둘인 이유 - `_auth_state_is_fresh` 는 파일만 보는 값싼 예비 검사고(브라우저를
+    안 띄운다), `_session_alive` 가 화면에 물어보는 진짜 판정이다. 앞것이 통과해도
+    뒷것이 막을 수 있고, 그때는 2FA 로그인 창이 뜬다.
+
+    **로그인 동안에는 pytest 의 출력 가로채기를 잠시 끈다.** `pytest -v` 는 기본적으로
+    stdout 을 가둬두므로, 끄지 않으면 `_login_and_save` 의 "인증번호를 직접 입력해주세요"
+    안내가 사람에게 안 보인다 - 창만 덩그러니 뜨고 얼마나 기다려주는지 알 수가 없다.
+    `-s` 로 전체를 여는 것과 달리 이 구간만 열어서, 다른 TC 의 리포트는 깨끗하게 둔다.
+    """
+    if _auth_state_is_fresh(AUTH_STATE_PATH) and _session_alive(browser_type, AUTH_STATE_PATH):
+        return AUTH_STATE_PATH
+
+    # 낡은 세션 파일은 남겨두지 않는다 - `_login_and_save` 가 새로 덮어쓰지만, 로그인이
+    # 중간에 실패하면 이 파일이 다음 실행에서 또 "예비 검사 통과" 로 시간을 버리게 한다.
+    if os.path.exists(AUTH_STATE_PATH):
+        os.remove(AUTH_STATE_PATH)
+
+    capman = pytestconfig.pluginmanager.getplugin("capturemanager")
+    if capman is not None:
+        capman.suspend_global_capture(in_=True)
+    try:
         _login_and_save(browser_type)
+    finally:
+        if capman is not None:
+            capman.resume_global_capture()
     return AUTH_STATE_PATH
 
 
