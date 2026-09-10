@@ -33,7 +33,12 @@ if %errorlevel% equ 0 (
     echo       데이터를 바꾸는 8건은 건너뜁니다 ^(게이트 기본값 - 8 skipped 는 정상^).
     echo       함께 돌리려면: run_tests_and_report.bat --allow-mutating
 )
-pytest -v --alluredir=allure-results %*
+REM --clean-alluredir 로 지난 실행 결과를 지우고 시작한다. 안 지우면 결과가 쌓여
+REM Allure 가 서로 다른 실행의 같은 TC 를 'Retries' 로 묶어 보여준다 - 이번에 skip 된
+REM TC 를 눌렀는데 지난 실행의 실패가 나와서 '안 돌린 TC 가 왜 빨간불이냐' 가 된다
+REM (2026-09-10 실측 - 결과 폴더에 5개 실행분 147건이 섞여 있었다).
+REM allure-report 는 원래 매번 지우고 있었는데 allure-results 만 빠져 있었다.
+pytest -v --alluredir=allure-results --clean-alluredir %*
 if %errorlevel% neq 0 (
     REM pytest가 실패해도 계속 진행 (이미 일부 결과가 있을 수 있음)
 )
