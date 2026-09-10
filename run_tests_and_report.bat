@@ -1,5 +1,13 @@
 @echo off
 REM QA 테스트 실행 및 리포트 생성 통합 스크립트 (Windows)
+REM
+REM   run_tests_and_report.bat                    읽기 전용 61건만 (기본)
+REM   run_tests_and_report.bat --allow-mutating   저장하는 8건까지 69건 전부
+REM
+REM 붙인 인자는 %* 로 pytest 에 그대로 넘어간다. 데이터를 바꾸는 8건
+REM (@pytest.mark.mutating) 은 게이트가 기본적으로 skip 하므로, 플래그 없이
+REM 돌리면 결과에 8 skipped 가 뜬다 - 고장이 아니다.
+REM 자세한 것은 README '데이터를 바꾸는 테스트는 기본적으로 실행되지 않습니다' 참고.
 
 setlocal enabledelayedexpansion
 
@@ -10,6 +18,14 @@ echo ============================================
 REM 1. pytest 실행 및 Allure 결과 수집
 echo.
 echo [1/4] pytest 테스트 실행 중...
+echo %* | findstr /C:"--allow-mutating" >nul
+if %errorlevel% equ 0 (
+    echo       [!] --allow-mutating 켜짐 - 데이터를 바꾸는 8건이 함께 돕니다.
+    echo           dev 차량 4대의 소속 업체가 실제로 바뀌었다 돌아옵니다.
+) else (
+    echo       데이터를 바꾸는 8건은 건너뜁니다 ^(게이트 기본값 - 8 skipped 는 정상^).
+    echo       함께 돌리려면: run_tests_and_report.bat --allow-mutating
+)
 pytest -v --alluredir=allure-results %*
 if %errorlevel% neq 0 (
     REM pytest가 실패해도 계속 진행 (이미 일부 결과가 있을 수 있음)

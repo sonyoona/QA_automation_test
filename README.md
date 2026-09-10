@@ -185,6 +185,9 @@ run_tests_and_report.bat
 bash run_tests_and_report.sh
 ```
 
+붙인 인자는 pytest 로 그대로 넘어갑니다. 데이터를 바꾸는 8건까지 함께 돌리려면
+뒤에 `--allow-mutating` 을 붙입니다 (아래 "실행 방법" 참고).
+
 ### 1. 공식 Allure 3 리포트 (기본 산출물)
 
 pytest 표준 도구가 만드는 리포트로, 스크린샷·콘솔 로그·단계별 실행 기록까지 담깁니다.
