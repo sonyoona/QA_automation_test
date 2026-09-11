@@ -389,9 +389,9 @@ TC를 쓴 뒤 반드시 자문한다:
   | 명령 | 실제로 돌아가는 것 |
   |---|---|
   | `pytest -v` | **60 passed, 9 skipped** — 읽기 전용만 |
-  | `pytest --allow-mutating -v` | **69 전부** — 읽기 전용 61 + 저장하는 8이 같이 |
-  | `pytest -m mutating -v` | **8 skipped, 61 deselected** — 아무것도 안 돎 |
-  | `pytest -m mutating --allow-mutating -v` | **8만** — 저장하는 것만 |
+  | `pytest --allow-mutating -v` | **69 전부** — 읽기 전용 60 + 저장하는 9가 같이 |
+  | `pytest -m mutating -v` | **9 skipped, 60 deselected** — 아무것도 안 돎 |
+  | `pytest -m mutating --allow-mutating -v` | **9만** — 저장하는 것만 |
 
   `deselected`(`-m` 이 안 골랐다)와 `skipped`(골랐는데 게이트가 막았다)는 다른 말이다. 그래서 `-m mutating` 만 붙이면 **하나도 안 돈다** — 저장하는 9건을 실제로 돌리려면 둘 다 붙여야 한다. skip 이 리포트에 뜨는 것도 싫으면 `-m "not mutating"` 을 쓴다(이제 안전용이 아니라 리포트 정리용이다).
 - **마커는 "고를 수 있게" 만든 것이지 "모르고 돌리는 것을 막는" 장치가 아니다.** 그쪽은 ①의 옵트인 게이트가 맡는다(2026-09-09 에 넣었다). 그래서 이제 `pytest -v` 는 그 9건을 skip 한다 — `-m "not mutating"` 은 "리포트에서 아예 빼고 싶을 때" 쓰는 것이지 안전을 위해 필요한 것이 아니다.
@@ -404,7 +404,7 @@ TC를 쓴 뒤 반드시 자문한다:
 
 - 각 테스트는 다른 테스트의 실행 결과·순서에 의존하지 않는다. TC A가 만든 데이터를 TC B가 전제로 쓰지 않는다.
 - 테스트가 데이터를 생성·수정·삭제하면, 그 테스트 안에서 필요한 걸 준비하고 다른 테스트에 영향이 남지 않게 한다.
-- **이 원칙은 이미 적용 중이다.** 대부분은 읽기 전용이지만 `test_vehicle_company_transfer.py` 의 TC-059~066 과 `test_vehicle_edit_reseller.py` 의 TC-053 이 데이터를 바꾼다. 그쪽은 이관 전용 차량 4대(`900용1001~1004`)를 다른 TC(TC-051~058)와 겹치지 않게 나눠 쓰고, **`company_guard` fixture 의 teardown 이** 원래 업체로 되돌려 반복 실행이 가능하게 하는 방식으로 독립성을 지킨다 (2026-09-09 부터 — 그 전에는 본문 마지막 줄이라 중간 실패 시 상태가 남았다).
+- **이 원칙은 이미 적용 중이다.** 대부분은 읽기 전용이지만 `test_vehicle_company_transfer.py` 의 TC-059~066 과 `test_vehicle_edit_reseller.py` 의 TC-053 이 데이터를 바꾼다. 그쪽은 이관 전용 차량 4대(`900용1001~1004`)를 다른 TC(TC-051~058)와 겹치지 않게 나눠 쓰고, **`company_guard` fixture 의 teardown 이** 원래 업체로 되돌려 반복 실행이 가능하게 하는 방식으로 독립성을 지킨다 (2026-09-09 부터 — 그 전에는 본문 마지막 줄이라 중간 실패 시 상태가 남았다). TC-053 은 **`reseller_guard`** 가 같은 방식으로 원래 리셀러로 되돌린다 (2026-09-10 부터).
 
 ## 테스트 데이터
 
@@ -519,7 +519,7 @@ python tools/generate_qa_report.py allure-results -o qa-report.html
 | `allure-report/index.html` | 기본 — 개발자·상세 진단 | 스크린샷·콘솔 로그·단계별 실행 기록, `allure open`으로 열어야 함(서버 필요) |
 | `qa-report.html` | 추가 — QA 빠른 확인 | feature/TC ID/파일명/함수명/상태/실행시간을 표로, 탭 4개(요약·화면별·상태별·전체), 더블클릭으로 바로 열림 |
 
-상세 사용법은 `docs/QA-리포트-생성-가이드.md` 참고.
+상세 사용법은 `docs/guides/QA-리포트-생성-가이드.md` 참고.
 
 > **Allure 3 CLI 문법 주의**: 예전(Java 기반) Allure의 `--single-file`·`--clean` 옵션은
 > Allure 3(Node 기반)에는 없다. `allure generate <results> --output <dir>`만 쓰고, 재생성 전

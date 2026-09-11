@@ -609,8 +609,8 @@ pytestmark = allure.feature("차량관리 > 현장 서비스  ·  test_field_ser
 @allure.step("차량관리 > 현장 서비스 진입")
 def goto(self) -> None: ...
 
-@allure.step("차량번호 {plate} 로 검색")      # 인자값이 그 자리에 치환된다
-def search_by_plate(self, plate: str) -> None: ...
+@allure.step("[{name}] 상태 탭 클릭")      # 인자값이 그 자리에 치환된다
+def click_status_tab(self, name: str) -> None: ...
 ```
 문구에 인자를 넣을 때 **따옴표를 직접 쓰지 않습니다** — Allure가 알아서 붙여줘서 `''값''`처럼 두 번 찍힙니다.
 한 줄짜리 단순 조회 함수에까지 다 붙이지는 않습니다. 단계가 서너 개로 나뉘는 흐름에만 의미가 있습니다.
@@ -729,7 +729,7 @@ def pytest_runtest_makereport(item, call):
 | `FieldServicePage.goto()` | GNB로 화면 진입 | 현장서비스 노트 (메뉴 이름 함정) |
 | `.wait_loaded()` / `.wait_table_settled()` | 결과 목록이 다 그려질 때까지 대기 | 현장서비스 노트 (껍데기 vs 행) |
 | `.row_ids()` | 행 PK 목록 | 현장서비스 노트 |
-| `.is_empty_result()` / `.state_summary()` | 0건일 때 원인 가르기 | 현장서비스 노트 |
+| `.state_summary()` | 0건일 때 원인 가르기 | 현장서비스 노트 |
 | `.open_new_service_popup()` | 팝업을 열고 `NewServicePopup`을 돌려줌 | 14번 (Page Object 문법) |
 
 ### 모니터 리셀러 필터 (`test_monitor_reseller_filter.py`)
