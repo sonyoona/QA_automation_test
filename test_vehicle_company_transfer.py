@@ -9,6 +9,7 @@ from playwright.sync_api import Page, expect
 from test_vehicle_edit_reseller import (
     CAR_PARTNER_CONNECT,
     _find_list_col_index,
+    _find_list_row,
     _get_edit_field,
     _open_carmgmt_edit_modal,
     _read_settled,
@@ -275,7 +276,7 @@ def _transfer_company_and_save(page: Page, car_number: str, destination: str) ->
     _confirm_transfer_complete(page)
 
     company_col = _find_list_col_index(page, "업체명")
-    row = page.locator("table").first.locator("tbody tr").filter(has_text=car_number)
+    row = _find_list_row(page, car_number)
     expect(row.locator("td").nth(company_col)).to_have_text(destination, timeout=10_000)
 
 

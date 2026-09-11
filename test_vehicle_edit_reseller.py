@@ -6,7 +6,7 @@ from typing import Callable, Generator
 
 import allure
 import pytest
-from playwright.sync_api import Locator, Page, expect
+from playwright.sync_api import Locator, Page, Response, expect
 
 STAFF_URL = os.getenv("STAFF_URL")
 
@@ -23,19 +23,42 @@ CAR_PARTNER_SMALLTICKET = "056용1111"   # 스몰티켓(지입)2 → 파트너 �
 # 자세한 설명은 docs/notes/code-notes/차량수정-파트너리셀러-테스트-노트.md 참고
 
 
+def _is_car_list_response(response: Response) -> bool:
+    """차량 목록 API 응답인가 (2026-09-11 실측: GET .../admin/fms/v1/car?size=10&sort=id,desc&page=0)."""
+    return response.request.method == "GET" and "/fms/v1/car?" in response.url
+
+
 @allure.step("차량 {car_number}의 [수정] 버튼을 눌러 모달 열기")
 def _open_carmgmt_edit_modal(page: Page, car_number: str) -> None:
-    """차량관리>차량관리로 이동해 지정한 차량번호 행의 [수정] 버튼을 눌러 상세 모달을 연다.
-    모달 데이터는 비동기로 채워지므로, 차량 번호 입력값이 실제로 그 차량 걸로 찰 때까지 기다린 뒤 돌려준다."""
+    """차량관리>차량관리에서 차량번호로 **검색한 뒤** 그 행의 [수정] 버튼을 눌러 상세 모달을 연다.
+    모달 데이터는 비동기로 채워지므로, 차량 번호 입력값이 실제로 그 차량 걸로 찰 때까지 기다린 뒤 돌려준다.
+
+    ★ 목록은 최근 등록순 10건씩이라, 검색 없이 1페이지에서 찾으면 새 차량이 등록될 때마다 밀려나 못 찾는다.
+    경위: docs/notes/code-notes/차량수정-파트너리셀러-테스트-노트.md "문제 4 — 1페이지에서 찾던 차량이 밀려났다"
+    """
     page.goto(STAFF_URL)
     page.locator("a").filter(has_text=re.compile(r"^차량관리$")).click()
-    page.get_by_role("link", name="차량 관리", exact=True).click()
+    # 첫 목록 응답을 받은 뒤에 검색한다 - 로딩 중에 검색하면 두 응답의 도착 순서가 보장되지 않는다
+    with page.expect_response(_is_car_list_response):
+        page.get_by_role("link", name="차량 관리", exact=True).click()
 
-    row = page.locator("table").first.locator("tbody tr").filter(has_text=car_number)
-    row.get_by_role("button", name="수정", exact=True).click()
+    keyword = page.locator('input[name="searchKeyword"]')
+    keyword.fill(car_number)
+    with page.expect_response(lambda r: _is_car_list_response(r) and "searchKeyword=" in r.url):
+        keyword.press("Enter")
+
+    _find_list_row(page, car_number).get_by_role("button", name="수정", exact=True).click()
 
     car_number_input = page.locator('input[name="carNumber"]')
     expect(car_number_input).to_have_value(car_number, timeout=15_000)
+
+
+def _find_list_row(page: Page, car_number: str) -> Locator:
+    """목록에서 **"차량번호" 컬럼이 정확히** car_number 인 행. 행 전체 `has_text` 는 부분 일치라
+    비슷한 번호("1035용11110")나 다른 칸에 그 번호가 적힌 행까지 잡는다."""
+    col = _find_list_col_index(page, "차량번호")
+    cell = page.locator(f"td:nth-child({col + 1})", has_text=re.compile(f"^{re.escape(car_number)}$"))
+    return page.locator("table").first.locator("tbody tr").filter(has=cell)
 
 
 def _get_modal(page: Page) -> Locator:
@@ -111,7 +134,7 @@ def _restore_reseller(page: Page, car_number: str, original_reseller: str) -> No
     _save_edit_modal(page)
 
     reseller_col = _find_list_col_index(page, "리셀러")
-    row = page.locator("table").first.locator("tbody tr").filter(has_text=car_number)
+    row = _find_list_row(page, car_number)
     expect(row.locator("td").nth(reseller_col)).to_have_text(original_reseller, timeout=10_000)
 
 
@@ -222,7 +245,7 @@ def test_TC053_vehicle_edit_reseller_change_and_revert_when_partner_lg_uplus(
     # 그대로 보일 수 있어서(상세 데이터가 새로 안 불려온 것으로 보임), 목록에서 갱신된 걸
     # 먼저 확인해 저장이 실제로 끝났다는 신호로 삼는다.
     reseller_col = _find_list_col_index(page, "리셀러")
-    row = page.locator("table").first.locator("tbody tr").filter(has_text=car)
+    row = _find_list_row(page, car)
     expect(row.locator("td").nth(reseller_col)).to_have_text("커넥트", timeout=10_000)
 
     # 재진입해서 반영 확인
@@ -234,7 +257,7 @@ def test_TC053_vehicle_edit_reseller_change_and_revert_when_partner_lg_uplus(
     _select_reseller(page, "LG U+")
     _save_edit_modal(page)
 
-    row = page.locator("table").first.locator("tbody tr").filter(has_text=car)
+    row = _find_list_row(page, car)
     expect(row.locator("td").nth(reseller_col)).to_have_text("LG U+", timeout=10_000)
 
     # 재진입해서 원복 확인
