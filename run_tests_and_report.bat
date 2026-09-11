@@ -7,12 +7,12 @@ REM   파일 중간에 코드페이지를 바꾸면 파서가 어긋나 REM 줄까지 실행된다 (같은 날
 REM   .sh 쪽은 반대로 LF 여야 한다 - .gitattributes 가 둘을 따로 고정한다.
 REM QA 테스트 실행 및 리포트 생성 통합 스크립트 (Windows)
 REM
-REM   run_tests_and_report.bat                    읽기 전용 61건만 (기본)
-REM   run_tests_and_report.bat --allow-mutating   저장하는 8건까지 69건 전부
+REM   run_tests_and_report.bat                    읽기 전용 60건만 (기본)
+REM   run_tests_and_report.bat --allow-mutating   저장하는 9건까지 69건 전부
 REM
-REM 붙인 인자는 %* 로 pytest 에 그대로 넘어간다. 데이터를 바꾸는 8건
+REM 붙인 인자는 %* 로 pytest 에 그대로 넘어간다. 데이터를 바꾸는 9건
 REM (@pytest.mark.mutating) 은 게이트가 기본적으로 skip 하므로, 플래그 없이
-REM 돌리면 결과에 8 skipped 가 뜬다 - 고장이 아니다.
+REM 돌리면 결과에 9 skipped 가 뜬다 - 고장이 아니다.
 REM 자세한 것은 README '데이터를 바꾸는 테스트는 기본적으로 실행되지 않습니다' 참고.
 
 REM 지연확장(enabledelayedexpansion)은 켜지 않는다 - echo 의 [!] 가 사라진다.
@@ -27,10 +27,10 @@ echo.
 echo [1/4] pytest 테스트 실행 중...
 echo %* | findstr /C:"--allow-mutating" >nul
 if %errorlevel% equ 0 (
-    echo       [!] --allow-mutating 켜짐 - 데이터를 바꾸는 8건이 함께 돕니다.
-    echo           dev 차량 4대의 소속 업체가 실제로 바뀌었다 돌아옵니다.
+    echo       [!] --allow-mutating 켜짐 - 데이터를 바꾸는 9건이 함께 돕니다.
+    echo           dev 차량 5대의 값이 실제로 바뀌었다 돌아옵니다 - 이관 4대 + TC-053 1대.
 ) else (
-    echo       데이터를 바꾸는 8건은 건너뜁니다 ^(게이트 기본값 - 8 skipped 는 정상^).
+    echo       데이터를 바꾸는 9건은 건너뜁니다 ^(게이트 기본값 - 9 skipped 는 정상^).
     echo       함께 돌리려면: run_tests_and_report.bat --allow-mutating
 )
 REM --clean-alluredir 로 지난 실행 결과를 지우고 시작한다. 안 지우면 결과가 쌓여
