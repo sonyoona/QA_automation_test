@@ -179,7 +179,7 @@ def _login_and_save(browser_type: BrowserType) -> None:
         page.get_by_placeholder("비밀번호").fill(ADMIN_PASSWORD)
         page.get_by_role("button", name="로그인").click()
 
-        # TODO: 실제 화면 문구/셀렉터로 교체
+        # 2단계 인증 화면이 떴는지 확인 (실측 문구, 2026-09-10 기준)
         expect(page.get_by_text("인증번호")).to_be_visible()
         print(f"\n[로그인] 인증번호를 직접 입력해주세요. 최대 {OTP_WAIT_SEC}초 기다립니다.")
 

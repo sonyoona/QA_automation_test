@@ -272,13 +272,6 @@ class FieldServicePage:
                 f"        {self.state_summary()}"
             ) from e
 
-    def is_empty_result(self) -> bool:
-        """결과가 0 건이라 "데이터가 없습니다" 안내가 떠 있는 상태인가.
-
-        행이 0 개인 것만으로 판정하면 안 된다 - 아직 그리는 중일 때도 0 개다.
-        """
-        return self.EMPTY_TEXT in self.table_root.inner_text()
-
     # 요약을 만들다가 화면 읽기가 막히면 짧게 포기한다. 여기서 오래 끄는 것은
     # "왜 실패했는지" 를 늦게 알려주는 것뿐이라 이득이 없다.
     SUMMARY_READ_TIMEOUT_MS = 2_000
@@ -313,11 +306,6 @@ class FieldServicePage:
             f"표={unknown if table is None else repr(table)}"
         )
 
-    @allure.step("차량번호 {plate} 로 검색")
-    def search_by_plate(self, plate: str) -> None:
-        self.plate_input.fill(plate)
-        self.search()
-
     @allure.step("[{name}] 상태 탭 클릭")
     def click_status_tab(self, name: str) -> None:
         """상태 탭을 누르고 목록이 다시 그려질 때까지 기다린다.
@@ -330,11 +318,6 @@ class FieldServicePage:
         self.status_tab(name).click()
         expected = self.status_tab_count(name)
         self.wait_table_settled(allow_empty=(expected == 0))
-
-    @allure.step("조회 버튼 클릭")
-    def search(self) -> None:
-        self.search_button.click()
-        self.wait_loaded()
 
     def row_ids(self) -> list[str]:
         """현재 화면에 보이는 행들의 PK 목록. 예: ['10679', '10677', ...]

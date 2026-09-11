@@ -103,7 +103,9 @@ dev 환경에서 업체 이름만으로는 소속 파트너를 알 수 없어서
 - 파트너가 커넥트/스몰티켓인 차량은 리셀러가 자동선택+비활성 상태인지 확인
 - 파트너가 LG U+인 차량은 리셀러가 [커넥트/LG U+] 중 선택 가능한 필수 항목인지 확인
 
-리셀러 값을 실제로 변경·저장하는 TC(업체 선택 변경에 따른 리셀러 값 초기화/재설정)는 저장 후 뜨는 확인 팝업(`[OK]`)을 눌러야 실제로 반영되는 걸 확인해 자동화에 반영했습니다.
+**TC-053 만 예외로 값을 실제로 저장합니다** — 리셀러를 LG U+ ↔ 커넥트로 두 번 바꾸고 저장까지 확인합니다. 저장 후 뜨는 확인 팝업(`[OK]`)을 눌러야 실제로 반영되는 걸 확인해 자동화에 반영했습니다.
+
+이 TC 도 `@pytest.mark.mutating` 이라 `pytest -v` 로는 실행되지 않고, `reseller_guard` fixture 의 teardown 이 원래 값으로 되돌립니다 — 통과든 실패든 예외든 반드시 돕니다. 2026-09-10 까지는 마커가 없어 그냥 돌았고 원복도 본문 마지막 줄이었습니다 (아래 "데이터를 바꾸는 테스트" 참고).
 
 ### 5. 업체 변경(이관) 시 파트너/리셀러 반응 검증 (`test_vehicle_company_transfer.py`)
 
@@ -187,7 +189,7 @@ run_tests_and_report.bat
 bash run_tests_and_report.sh
 ```
 
-붙인 인자는 pytest 로 그대로 넘어갑니다. 데이터를 바꾸는 8건까지 함께 돌리려면
+붙인 인자는 pytest 로 그대로 넘어갑니다. 데이터를 바꾸는 9건까지 함께 돌리려면
 뒤에 `--allow-mutating` 을 붙입니다 (아래 "실행 방법" 참고).
 
 ### 1. 공식 Allure 3 리포트 (기본 산출물)
@@ -289,18 +291,24 @@ pytest test_monitor_reseller_filter.py -v
 
 ### 데이터를 바꾸는 테스트는 기본적으로 실행되지 않습니다
 
-`test_vehicle_company_transfer.py` 의 TC-059~066 여덟 건은 차량 수정 모달에서 **[수정] 저장을
-실제로 실행**해 dev 데이터를 바꿉니다(`@pytest.mark.mutating`). 모르고 돌리는 것을 막으려고
-**기본값이 "실행 안 함"** 입니다 — `pytest -v` 를 그냥 돌리면 그 8건은 skip 됩니다.
+저장을 실제로 실행해 dev 데이터를 바꾸는 TC 는 **아홉 건**입니다(`@pytest.mark.mutating`).
+
+| 파일 | TC | 무엇을 저장하나 |
+|---|---|---|
+| `test_vehicle_company_transfer.py` | TC-059~066 (8건) | 차량 소속 업체 이관 |
+| `test_vehicle_edit_reseller.py` | TC-053 (1건) | 차량 리셀러 값 |
+
+모르고 돌리는 것을 막으려고 **기본값이 "실행 안 함"** 입니다 — `pytest -v` 를 그냥 돌리면
+그 9건은 skip 됩니다.
 
 ```bash
-pytest -v                                 # 61 passed, 8 skipped  ← 평소
-pytest --allow-mutating -v                # 69 전부 (읽기 전용 61 + 저장하는 8)
-pytest -m mutating --allow-mutating -v    # 저장하는 8건만
+pytest -v                                 # 60 passed, 9 skipped  ← 평소
+pytest --allow-mutating -v                # 69 전부 (읽기 전용 60 + 저장하는 9)
+pytest -m mutating --allow-mutating -v    # 저장하는 9건만
 ```
 
 - `-m` 은 **고르는** 것이고 `--allow-mutating` 은 **돌려도 되는지**를 정하는 별개의 단계입니다.
-  그래서 `pytest -m mutating -v` 만 붙이면 **하나도 안 돕니다**(8 skipped, 61 deselected).
+  그래서 `pytest -m mutating -v` 만 붙이면 **하나도 안 돕니다**(9 skipped, 60 deselected).
 - 플래그는 **그 명령 한 줄에만** 살아서 끄는 것을 잊을 수 없습니다. 여러 번 반복해 돌릴 때는
   셸 환경변수(`ALLOW_MUTATING_TESTS=true`)도 쓸 수 있지만, 그만큼 오래 살아남습니다.
 - 허용을 켰더라도 `.env` 의 `STAFF_URL` 이 **`conftest.py` 의 `MUTATING_ALLOWED_HOSTS` 에
